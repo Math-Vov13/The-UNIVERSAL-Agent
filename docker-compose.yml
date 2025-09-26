@@ -1,0 +1,60 @@
+services:
+  web:
+    build:
+      context: ./web-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_BASE_URL=http://nginx:8000
+
+    networks:
+      - custom_network
+    depends_on:
+      - nginx
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - custom_network
+    depends_on:
+      - app
+
+  app:
+    build:
+      context: ./app-backend
+      dockerfile: Dockerfile
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - PORT=8080
+    env_file:
+      - ./app-backend/.env
+
+    networks:
+      - custom_network
+
+  db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=mydatabase
+    networks:
+      - custom_network
+      
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  db_data:
+
+networks:
+  custom_network:
+    driver: bridge

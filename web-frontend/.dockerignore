@@ -1,0 +1,8 @@
+.next/
+node_modules/
+out/
+
+.gitignore
+components.json
+*.md
+.DS_Store
