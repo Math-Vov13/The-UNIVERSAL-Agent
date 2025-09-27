@@ -3,7 +3,8 @@ from fastapi.responses import StreamingResponse
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 from pydantic import BaseModel
 from uuid import uuid4
-from rag.main import llm
+# from rag.config import llm
+from rag.server import llm_with_tools, graph
 from json import dumps
 
 
@@ -38,36 +39,29 @@ def create_generation(body: GenerationRequest) -> StreamingResponse:
     generation_id = str(uuid4())
     messages = convert_history(body.history) + [HumanMessage(content=body.prompt)]
 
-    generation = llm.astream_events(messages)
-
-    # return {
-    #     "model": llm.model,
-    #     "generation_id": "gen-" + generation_id,
-    #     "timestamp": time(),
-    #     "response": generation.content,
-    # }
+    generation = graph.astream_events({"messages": messages})
 
     async def event_stream():
+        yield f"event: delta\ndata: {dumps({'model': llm_with_tools.model})}\n\n"
         async for chunk in generation:
-            print("chunk", chunk, flush=True)
+            print("chunk", chunk, flush=True, end="\n\n")
 
-            if chunk.get("event") == "on_chat_model_start":
-                yield f"event: delta\ndata: {dumps({'model': llm.model})}\n\n"
+            # if chunk.get("event") == "on_chat_model_start":
+            #     yield f"event: delta\ndata: {dumps({'model': llm_with_tools.model})}\n\n"
 
-            elif chunk.get("event") == "on_chat_model_end":
-                yield f"event: delta\ndata: [DONE]\n\n"
+            # elif chunk.get("event") == "on_chat_model_end":
+            #     yield f"event: delta\ndata: [DONE]\n\n"
+
+            if chunk.get("event") == "on_tool_start":
+                yield f"event: tool_start\ndata: {dumps({'id': chunk.get('run_id'), 'name': chunk.get('name'), 'input': chunk.get('data').get('input')})}\n\n"
             
-            elif chunk.get("event") == "on_chat_model_stream":
-                yield f"data: {chunk.get("data").get("chunk").model_dump_json()}\n\n"
+            elif chunk.get("event") == "on_tool_end":
+                yield f"event: tool_end\ndata: {dumps({'id': chunk.get('run_id'), 'tool_id': chunk.get('data').get('output').tool_call_id, 'name': chunk.get('name'), 'output': chunk.get('data').get('output').content})}\n\n"
 
-            # if chunk.get("error"):
-            #     yield f"data: {chunk['error']}\n\n"
-            # elif chunk.get("done"):
-            #     yield f"data: [DONE]\n\n"
-            # elif chunk.get("input"):
-            #     yield f"start: [INPUT] {chunk['input']}\n\n"
-                
-            # else:
-            #     yield f"data: {dumps(chunk)}\n\n"
+            elif chunk.get("event") == "on_chat_model_stream":
+                if chunk.get("data").get("chunk").content == "": continue
+                yield f"data: {chunk.get("data").get("chunk").model_dump_json()}\n\n"
+            
+        yield f"event: delta\ndata: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

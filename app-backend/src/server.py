@@ -1,6 +1,6 @@
 import logging
 from uuid import uuid4
-from time import time, sleep as wait
+from time import time
 import os
 
 from fastapi import FastAPI, Request
@@ -72,27 +72,8 @@ def read_root():
     return {"Hello": "World"}
 
 
-# @app.post("/generation")
-# def create_generation(body: GenerationRequest) -> StreamingResponse:
-#     generation_id = str(uuid4())
-#     generation = llm.invoke(body.prompt)
-
-#     # return {
-#     #     "model": llm.model,
-#     #     "generation_id": "gen-" + generation_id,
-#     #     "timestamp": time(),
-#     #     "response": generation.content,
-#     # }
-
-#     async def event_stream():
-#         async for chunk in generation:
-#             wait(0.1)  # Simulate delay for streaming effect
-#             yield f"data: {chunk}\n\n"
-
-#     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 app.include_router(genRouter, prefix="/generation", tags=["generation"])
-
 
 
 if __name__ == "__main__":
