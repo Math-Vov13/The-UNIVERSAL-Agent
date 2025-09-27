@@ -2,16 +2,12 @@
 import { useEffect, useRef } from "react";
 import ChatMessage from "./ChatMessage";
 import Shuffle from '../Shuffle';
+import z from "zod";
+import { message_schema } from "../../lib/db";
 
-type ChatMessageType = {
-    id: number;
-    role: "user" | "assistant";
-    content: string;
-    timestamp: Date;
-};
 
 type ChatWindowProps = {
-    messages: ChatMessageType[];
+    messages: z.infer<typeof message_schema>[];
     isLoading: boolean;
 };
 
@@ -29,8 +25,8 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
 
     return (
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-            {messages.map((message, index) => (
-                <ChatMessage key={index} index={message.id} message={message} />
+            {messages.map((message, index) => ( message.content.trim() !== "" && (
+                <ChatMessage key={index} index={message.id} message={message} /> )
             ))}
 
             {isLoading && (

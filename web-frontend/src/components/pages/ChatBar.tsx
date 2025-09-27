@@ -3,7 +3,6 @@ import { Box, CircleFadingPlus, SendHorizonal } from "lucide-react";
 import React, { useState, useRef } from "react";
 import { useRouter } from 'next/navigation';
 import RotatingText from "../RotatingText";
-import { FlipWords } from "../ui/flip-words";
 
 type ChatBarProps = {
     stateBar: "create" | "chat" | "docs";

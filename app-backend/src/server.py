@@ -1,16 +1,13 @@
-from fastapi import FastAPI, Request
 import logging
 from uuid import uuid4
-from time import time
+from time import time, sleep as wait
 import os
 
-from pydantic import BaseModel
-from rag.main import llm
+from fastapi import FastAPI, Request
+from endpoints.generation import router as genRouter  # Import the router from generation.py
 
 app = FastAPI(root_path="/api/v1")
 
-class GenerationRequest(BaseModel):
-    prompt: str
 
 # Configure logging
 logging.basicConfig(
@@ -68,22 +65,35 @@ async def log_requests(request: Request, call_next):
         logging.error(f"[{request_id}] Exception during request processing: {str(e)} | Time: {process_time:.3f}s")
         raise
 
+
+
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
 
 
-@app.post("/generation")
-def create_generation(body: GenerationRequest):
-    generation_id = str(uuid4())
-    generation = llm.invoke(body.prompt)
+# @app.post("/generation")
+# def create_generation(body: GenerationRequest) -> StreamingResponse:
+#     generation_id = str(uuid4())
+#     generation = llm.invoke(body.prompt)
 
-    return {
-        "model": llm.model,
-        "generation_id": "gen-" + generation_id,
-        "timestamp": time(),
-        "response": generation.content,
-    }
+#     # return {
+#     #     "model": llm.model,
+#     #     "generation_id": "gen-" + generation_id,
+#     #     "timestamp": time(),
+#     #     "response": generation.content,
+#     # }
+
+#     async def event_stream():
+#         async for chunk in generation:
+#             wait(0.1)  # Simulate delay for streaming effect
+#             yield f"data: {chunk}\n\n"
+
+#     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+app.include_router(genRouter, prefix="/generation", tags=["generation"])
+
+
 
 if __name__ == "__main__":
     import uvicorn

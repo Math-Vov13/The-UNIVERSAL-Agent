@@ -1,13 +1,8 @@
+import { message_schema } from "@/lib/db";
 import Markdown from "react-markdown";
+import z from "zod";
 
-type ChatMessageType = {
-    id: number;
-    role: "user" | "assistant";
-    content: string;
-    timestamp: Date;
-};
-
-export default function ChatMessage({ message, index }: { message: ChatMessageType, index: number }) {
+export default function ChatMessage({ message, index }: { message: z.infer<typeof message_schema>, index: number }) {
     // const formatTime = (date: Date) => {
     //     return date.toLocaleTimeString('fr-FR', {
     //         hour: '2-digit',
