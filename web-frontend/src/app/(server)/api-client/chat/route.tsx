@@ -1,12 +1,19 @@
 import { getConversation, saveMessage } from "@/lib/db";
 import z from "zod";
 
+const fileSchema = z.object({
+    name: z.string(),
+    size: z.number().max(5 * 1024 * 1024), // Max 5MB
+    mimeType: z.string(),
+    type: z.string(),
+    base64: z.string()
+});
 
 const entry_schema = z.object({
     prompt: z.string().min(1).max(2000),
     conversation_id: z.uuidv4(),
-    extra: z.array(z.any()),
-    files: z.array(z.any())
+    extra: z.array(z.any().optional()).optional(),
+    files: z.array(fileSchema.optional()).max(5).optional()
 })
 
 type MessageContent = {
@@ -17,6 +24,7 @@ type MessageContent = {
 type ApiRequestBody = {
     prompt: string;
     history: MessageContent[];
+    files: z.infer<typeof fileSchema>[];
 }
 
 
@@ -41,6 +49,7 @@ export async function POST(req: Request) {
 
     const request = entry_schema.safeParse(await req.json());
     if (!request.success) {
+        console.error("Invalid request body:", request.error);
         return new Response(JSON.stringify({ error: "Invalid Body Format" }), { status: 422 });
     }
 
@@ -61,11 +70,13 @@ export async function POST(req: Request) {
             },
             body: JSON.stringify({
                 prompt,
-                history: history.map((msg): MessageContent => ({ content: msg.content, role: msg.role }))
+                history: history.map((msg): MessageContent => ({ content: msg.content, role: msg.role })),
+                files: request.data.files || []
             } as ApiRequestBody),
         });
 
         if (!response.ok) {
+            console.error("Backend response not ok:", await response.text());
             throw new Error("Failed to fetch");
         }
 

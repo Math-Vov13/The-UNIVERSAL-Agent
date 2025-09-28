@@ -10,7 +10,12 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import z from "zod";
 
 
-
+type FilePayload = {
+  name: string;
+  size: number;
+  type: string;
+  base64: string;
+};
 
 export default function ChatPage() {
   const authorized = true; // Replace with actual authorization logic
@@ -75,7 +80,7 @@ export default function ChatPage() {
 
 
   const sendMessageToAgent = useCallback(
-    async (history: z.infer<typeof message_schema>[], prompt: string) => {
+    async (prompt: string, files: FilePayload[] | null) => {
       if (!prompt || !isMountedRef.current) {
         return;
       }
@@ -98,6 +103,8 @@ export default function ChatPage() {
         return next;
       });
 
+      console.log("Sending prompt to agent:", prompt, files);
+
       try {
         const response = await fetch("/api-client/chat", {
           method: "POST",
@@ -113,7 +120,7 @@ export default function ChatPage() {
             // history: historyPayload,
             conversation_id: conversationId,
             extra: [],
-            files: [],
+            files: files ? Array.from(files) : [],
           }),
         });
 
@@ -236,11 +243,11 @@ export default function ChatPage() {
     messagesRef.current = initialMessages;
     setMessages(initialMessages);
 
-    void sendMessageToAgent(initialMessages, initialMessage.content);
+    void sendMessageToAgent(firstMessage, null);
   }, [conversationId, firstMessage, sendMessageToAgent]);
 
   const handleSubmit = useCallback(
-    async (message: string, _files: FileList | null) => {
+    async (message: string, files: FileList | null) => {
       const trimmedMessage = message.trim();
       if (!trimmedMessage) {
         return;
@@ -254,11 +261,35 @@ export default function ChatPage() {
         timestamp: new Date().toISOString(),
       };
 
+      const filesArray = [];
+      for (let i = 0; files && i < files.length; i++) {
+        filesArray.push({
+          name: files[i].name,
+          size: files[i].size,
+          mimeType: files[i].type,
+          type: "image",
+          base64: await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof reader.result === "string") {
+                resolve(reader.result);
+              } else {
+                reject(new Error("Failed to read file"));
+              }
+            };
+            reader.onerror = () => {
+              reject(new Error("Failed to read file"));
+            };
+            reader.readAsDataURL(files[i]);
+          }),
+        });
+      }
+
       const nextMessages = [...messagesRef.current, userMessage];
       messagesRef.current = nextMessages;
       setMessages(nextMessages);
 
-      await sendMessageToAgent(nextMessages, trimmedMessage);
+      await sendMessageToAgent(trimmedMessage, filesArray.length > 0 ? filesArray : null);
     },
     [sendMessageToAgent]
   );

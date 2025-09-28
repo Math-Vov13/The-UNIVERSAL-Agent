@@ -25,7 +25,7 @@ export default function ChatMessage({ message, index }: { message: z.infer<typeo
                 <div className={`text-s leading-relaxed ${message.role === 'user' ? 'font-medium' : ''}`}>
                     <div className="prose prose-lg max-w-none">
                         <Markdown>
-                            {message.content}
+                            {message.content === "" ? "No content*" : message.content}
                         </Markdown>
                     </div>
                 </div>
