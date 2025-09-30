@@ -1,5 +1,5 @@
 
-export async function GET(req: Request) {
+export async function GET() {
   return new Response(JSON.stringify({
     base_url: `${process.env.BACKEND_BASE_URL}`,
     status: "healthy",

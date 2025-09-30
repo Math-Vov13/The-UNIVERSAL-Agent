@@ -128,7 +128,7 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
             console.error("Error submitting chat:", error);
 
         } finally {
-            navigator.vibrate(100);
+            // navigator.vibrate(100); cause issues on some devices
             setLoading(false);
         }
     }
@@ -148,7 +148,7 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
                         onChange={(e) => setInput(e.target.value)}
                     />
                 </div>
-                <section className="flex w-full max-w-full items-center justify-start gap-2 bg-gray-950 px-4 py-2 rounded-lg">
+                <section className={`flex w-full max-w-full items-center justify-start gap-2 px-4 py-2 rounded-lg ${selectedFiles && selectedFiles.length > 0 ? "bg-gray-950" : "bg-gray-900/40"}`}>
                     <div title="Attach files" onClick={handlePlusClick} className="h-full justify-start text-purple-500 hover:text-purple-700 cursor-pointer relative">
                         <input
                             disabled={loading}

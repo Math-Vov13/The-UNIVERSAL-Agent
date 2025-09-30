@@ -76,7 +76,7 @@ export default function ChatPage() {
     };
 
     loadConversationHistory();
-  }, [conversationId]);
+  }, [conversationId, firstMessage]);
 
 
   const sendMessageToAgent = useCallback(

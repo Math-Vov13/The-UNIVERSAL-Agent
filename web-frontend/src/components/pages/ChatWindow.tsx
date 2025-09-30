@@ -12,7 +12,6 @@ type ChatWindowProps = {
 };
 
 export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
-    const darkMode = 'dark';
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const scrollToBottom = () => {

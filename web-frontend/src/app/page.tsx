@@ -1,9 +1,7 @@
 import GradientText from '@/components/GradientText';
-import RotatingText from '@/components/RotatingText';
 import Aurora from '@/components/AuroraBackground';
 import Link from 'next/link';
 import { HoverBorderGradient } from '@/components/ui/hover-border-gradient';
-import { LayoutTextFlip } from '@/components/ui/layout-text-flip';
 import { ContainerTextFlip } from '@/components/ui/container-text-flip';
 
 export default function Home() {

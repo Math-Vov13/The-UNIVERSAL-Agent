@@ -10,7 +10,7 @@ const fileSchema = z.object({
 });
 
 const entry_schema = z.object({
-    prompt: z.string().min(1).max(2000),
+    prompt: z.string().min(1).max(7000),
     conversation_id: z.uuidv4(),
     extra: z.array(z.any().optional()).optional(),
     files: z.array(fileSchema.optional()).max(5).optional()
