@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import ChatMessage from "./ChatMessage";
 import Shuffle from '../Shuffle';
 import z from "zod";
-import { message_schema } from "../../lib/db";
+import { message_schema } from "@/lib/types/client.schema";
 
 
 type ChatWindowProps = {

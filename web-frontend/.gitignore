@@ -43,4 +43,7 @@ next-env.d.ts
 
 # other
 *.md
+*.txt
+/docs
+test.json
 !README.md

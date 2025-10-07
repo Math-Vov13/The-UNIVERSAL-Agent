@@ -4,6 +4,8 @@ from time import time
 import os
 
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.cors import CORSMiddleware
 from endpoints.generation import router as genRouter  # Import the router from generation.py
 
 app = FastAPI(root_path="/api/v1")
@@ -73,6 +75,13 @@ def read_root():
 
 
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust as needed for security
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(genRouter, prefix="/generation", tags=["generation"])
 
 

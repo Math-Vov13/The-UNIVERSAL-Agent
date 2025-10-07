@@ -2,7 +2,7 @@
 import ChatBarProps from "@/components/pages/ChatBar";
 import ChatWindow from "@/components/pages/ChatWindow";
 import { BackgroundBeams } from "@/components/ui/background-beams";
-import { message_schema } from "@/lib/db";
+import { message_schema } from "@/lib/types/client.schema";
 import { PlusSquare } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -26,7 +26,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<z.infer<typeof message_schema>[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const messageIdRef = useRef(0);
+  const messageIdRef = useRef("0");
   const messagesRef = useRef<z.infer<typeof message_schema>[]>([]);
   const lastBootstrapKeyRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
@@ -60,13 +60,13 @@ export default function ChatPage() {
         if (actualHistory && actualHistory.length > 0) {
           const formattedHistory = actualHistory.map((msg, index) => ({
             ...msg,
-            id: index + 1,
+            id: String(index + 1),
             timestamp: msg.timestamp
           }));
 
           setMessages(formattedHistory);
           messagesRef.current = formattedHistory;
-          messageIdRef.current = formattedHistory.length;
+          messageIdRef.current = String(formattedHistory.length);
         }
       } catch (error) {
         console.error("Error loading conversation history:", error);
@@ -117,10 +117,16 @@ export default function ChatPage() {
           },
           body: JSON.stringify({
             prompt,
-            // history: historyPayload,
+            envPresets: 'default',
+            modelChoice: "auto",
+            modelName: "gemini-2.5-flash",
             conversation_id: conversationId,
             extra: [],
             files: files ? Array.from(files) : [],
+            metadata: {
+              client: "web",
+              clientBuild: "az14BdksjPOA46.2",
+            }
           }),
         });
 
@@ -146,9 +152,13 @@ export default function ChatPage() {
 
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
+          let actualEvent = '';
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
+            if (line.startsWith('event: ')) {
+              actualEvent = line.slice(7).trim();
+
+            } else if (line.startsWith('data: ')) {
               const data = line.slice(6);
 
               if (data === '[DONE]') {
@@ -157,7 +167,16 @@ export default function ChatPage() {
 
               try {
                 const parsed = JSON.parse(data);
+
+                if (actualEvent !== '') {
+                  console.log(`Event ${actualEvent}:`, parsed);
+                  
+                }
                 const content = parsed.content || parsed.delta?.content || '';
+                const tool_input = parsed.input || '';
+                const tool_output = parsed.output || '';
+                const tool_name = parsed.name || '';
+                const tool_id = parsed.id || '';
 
                 if (content) {
                   accumulatedContent += content;
@@ -177,10 +196,47 @@ export default function ChatPage() {
                       return updated;
                     });
                   }
+                } else if (tool_name && tool_id) {
+                  // Handle tool usage updates
+                  if (isMountedRef.current) {
+                    setMessages((previous) => {
+                      const updated = [...previous];
+                      const lastIndex = updated.length - 1;
+                      if (lastIndex >= 0 && updated[lastIndex].id === assistantMessage.id) {
+                        const existingTools = updated[lastIndex].tools || [];
+                        const toolIndex = existingTools.findIndex(t => t.id === tool_id);
+                        if (toolIndex !== -1) {
+                          // Update existing tool entry
+                          existingTools[toolIndex] = {
+                            ...existingTools[toolIndex],
+                            input: tool_input || existingTools[toolIndex].input,
+                            output: tool_output || existingTools[toolIndex].output,
+                            status: tool_output ? 'completed' : 'in_progress',
+                          };
+                        } else {
+                          // Add new tool entry
+                          existingTools.push({
+                            id: tool_id,
+                            name: tool_name,
+                            input: tool_input,
+                            output: tool_output,
+                            status: tool_output ? 'completed' : 'in_progress',
+                          });
+                        }
+                        updated[lastIndex] = {
+                          ...updated[lastIndex],
+                          tools: existingTools,
+                        };
+                      }
+                      messagesRef.current = updated;
+                      return updated;
+                    });
+                  }
                 }
               } catch (parseError) {
                 console.warn('Failed to parse SSE data:', parseError);
               }
+              actualEvent = '';
             }
           }
         }
@@ -216,7 +272,7 @@ export default function ChatPage() {
     const bootstrapKey = `${conversationId}|${firstMessage}`;
 
     if (!firstMessage) {
-      messageIdRef.current = 0;
+      messageIdRef.current = "0";
       messagesRef.current = [];
       lastBootstrapKeyRef.current = bootstrapKey;
       setIsThinking(false);
@@ -230,9 +286,9 @@ export default function ChatPage() {
 
     lastBootstrapKeyRef.current = bootstrapKey;
 
-    messageIdRef.current = 1;
+    messageIdRef.current = "1";
     const initialMessage: z.infer<typeof message_schema> = {
-      id: 1,
+      id: "-1",
       role: "user",
       content: firstMessage,
       timestamp: new Date().toISOString(),
@@ -258,6 +314,12 @@ export default function ChatPage() {
         id: messageIdRef.current,
         role: "user",
         content: trimmedMessage,
+        files: files ? Array.from(files).map(file => {
+          return {
+            type: "image",
+            data: file
+          };
+        }) : [],
         timestamp: new Date().toISOString(),
       };
 

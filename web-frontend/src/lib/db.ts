@@ -1,19 +1,7 @@
 import z from "zod"
+import { db_schema, message_schema, tool_schema, file_schema } from "./types/db.schema"
 
 const fakedb: z.infer<typeof db_schema>[] = []
-
-
-export const message_schema = z.object({
-    id: z.number(),
-    role: z.enum(["user", "assistant"]),
-    content: z.string(),
-    timestamp: z.string()
-})
-
-export const db_schema = z.object({
-  id: z.string().min(1),
-  history: z.array(message_schema),
-})
 
 
 
@@ -32,21 +20,48 @@ export async function getConversation(id: string): Promise<z.infer<typeof messag
     return []
 }
 
-export async function saveMessage(id: string, message: z.infer<typeof message_schema>): Promise<boolean> {
+export async function updateMessage(
+    conv_id: string, message_id: string, content?: string, tools?: z.infer<typeof tool_schema>[], files?: z.infer<typeof file_schema>[], status?: "pending" | "completed" | "failed", end_timestamp?: string
+): Promise<boolean> {
+    for (let i = 0; i < fakedb.length; i++) {
+        if (fakedb[i].id !== conv_id) continue;
+
+        const result = db_schema.safeParse(fakedb[i])
+        if (result.success) {
+            const messageIndex = result.data.history.findIndex(msg => msg.id === message_id)
+            if (messageIndex !== -1) {
+                const message = result.data.history[messageIndex]
+                if (content) message.content += content
+                if (tools) message.tools = (message.tools || []).concat(tools)
+                if (files) message.files = (message.files || []).concat(files)
+                if (status) message.status = status
+                if (end_timestamp) message.timestamp = end_timestamp
+                result.data.history[messageIndex] = message
+                fakedb[i] = result.data
+                return true
+            }
+        }
+    }
+    return false
+}
+
+export async function saveMessage(conv_id: string, message: z.infer<typeof message_schema>): Promise<string> {
+    const message_id = crypto.randomUUID()
+    message.id = message_id
     for (let i = 0; i < fakedb.length; i++) {
         const result = db_schema.safeParse(fakedb[i])
-        if (result.success && result.data.id === id) {
+        if (result.success && result.data.id === conv_id) {
             result.data.history.push(message)
             fakedb[i] = result.data
-            return true
+            return message_id
         }
     }
     const newEntry = {
-        id: id,
+        id: conv_id,
         history: [message]
     }
     fakedb.push(newEntry)
-    return true
+    return message_id
 }
 
 export async function clearConversation(id: string): Promise<boolean> {

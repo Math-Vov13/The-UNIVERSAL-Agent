@@ -143,12 +143,12 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
                         name="chat-input"
                         type="text"
                         placeholder="Hey, how can I assist you today?"
-                        className="flex-grow outline-none text-gray-200 bg-transparent placeholder-purple-400 placeholder:bold"
+                        className="flex-grow outline-none text-gray-200 bg-transparent placeholder-purple-400 placeholder:bold border-b border-transparent focus:border-purple-500 transition-all py-2"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                     />
                 </div>
-                <section className={`flex w-full max-w-full items-center justify-start gap-2 px-4 py-2 rounded-lg ${selectedFiles && selectedFiles.length > 0 ? "bg-gray-950" : "bg-gray-900/40"}`}>
+                <section className={`flex w-full max-w-full items-center justify-start gap-2 px-4 py-2 rounded-lg transition-colors duration-300 ease-in-out ${selectedFiles && selectedFiles.length > 0 ? "bg-gray-950" : "bg-gray-900/40 hover:bg-gray-900/90"}`}>
                     <div title="Attach files" onClick={handlePlusClick} className="h-full justify-start text-purple-500 hover:text-purple-700 cursor-pointer relative">
                         <input
                             disabled={loading}
@@ -156,7 +156,7 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
                             title="Attach files"
                             name="file-upload"
                             type="file"
-                            accept="image/png,image/gif,image/jpeg,image/jpg,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/csv,text/comma-separated-values,application/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,application/json,application/jsonl,application/xml,text/html,text/css,application/x-javascript,text/javascript,text/markdown,text/x-python-script,text/python,text/markdown"
+                            accept="image/png,image/gif,image/jpeg,image/jpg,image/webp"//,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/csv,text/comma-separated-values,application/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,application/json,application/jsonl,application/xml,text/html,text/css,application/x-javascript,text/javascript,text/markdown,text/x-python-script,text/python,text/markdown"
                             className="hidden"
                             onChange={handleFileChange}
                         />

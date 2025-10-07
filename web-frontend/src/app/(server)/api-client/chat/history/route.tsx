@@ -10,7 +10,7 @@ export async function GET(req: Request) {
 
     try {
         const history = await getConversation(conversationId);
-        return new Response(JSON.stringify(history), { status: 200 });
+        return new Response(JSON.stringify(history), { status: 200, headers: { "Content-Type": "application/json" } });
     } catch (error) {
         console.error("Error fetching conversation history:", error);
         return new Response("Error fetching conversation history", { status: 403 });

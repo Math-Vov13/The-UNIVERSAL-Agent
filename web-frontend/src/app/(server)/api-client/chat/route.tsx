@@ -1,4 +1,5 @@
-import { getConversation, saveMessage } from "@/lib/db";
+import { getConversation, saveMessage, updateMessage } from "@/lib/db";
+import { tool_schema } from "@/lib/types/db.schema";
 import z from "zod";
 
 const fileSchema = z.object({
@@ -80,14 +81,21 @@ export async function POST(req: Request) {
             throw new Error("Failed to fetch");
         }
 
-        await saveMessage(conversation_id, {
-            id: 0,
+        const user_message_id = await saveMessage(conversation_id, {
+            id: "0",
+            version: 1,
             role: "user",
             content: prompt,
             timestamp: new Date().toISOString()
         });
-
-        let completeResponse = "";
+        const assistant_message_id = await saveMessage(conversation_id, {
+            id: "0",
+            version: 1,
+            role: "assistant",
+            content: "",
+            status: "pending",
+            timestamp: new Date().toISOString()
+        });
 
         // Set up streaming response with proper SSE format
         const stream = new ReadableStream({
@@ -97,6 +105,9 @@ export async function POST(req: Request) {
                     controller.close();
                     return;
                 }
+
+                let completeResponse = "";
+                let tools_used: z.infer<typeof tool_schema>[] = [];
 
                 try {
                     while (true) {
@@ -117,14 +128,58 @@ export async function POST(req: Request) {
                                 if (jsonStr === "[DONE]") break;
 
                                 const jsonData = JSON.parse(jsonStr);
-                                if (jsonData.content) {
-                                    // Format as SSE with proper structure
-                                    const sseData = JSON.stringify({
-                                        content: jsonData.content,
-                                        token: jsonData.usage_metadata?.output_tokens || 0
-                                    });
-                                    completeResponse += jsonData.content;
-                                    controller.enqueue(new TextEncoder().encode(`data: ${sseData}\n\n`));
+                                if (jsonData.status === "chat_model_stream") {
+                                    if (jsonData.chunk) {
+                                        // Format as SSE with proper structure
+                                        const sseData = JSON.stringify({
+                                            content: jsonData.chunk,
+                                            token: jsonData.tokens || 0
+                                        });
+                                        completeResponse += jsonData.chunk;
+                                        controller.enqueue(new TextEncoder().encode(`event: delta\n\ndata: ${sseData}\n\n`));
+                                    }
+
+                                } else if (jsonData.status === "file_uploaded" || jsonData.status === "tool_start" || jsonData.status === "tool_end") {
+                                    if (jsonData.status === "file_uploaded") {
+                                        await updateMessage(conversation_id, user_message_id, undefined, undefined, [{
+                                            index: 0,
+                                            name: jsonData.name,
+                                            size: jsonData.size,
+                                            mimeType: jsonData.mimeType,
+                                            type: jsonData.type,
+                                            uri: jsonData.key
+                                        }]);
+                                    } else if (jsonData.status === "tool_start") {
+                                        tools_used.push({
+                                            index: tools_used.length,
+                                            id: jsonData.id,
+                                            name: jsonData.name,
+                                            input: typeof jsonData.input === "string" ? jsonData.input : JSON.stringify(jsonData.input),
+                                            output: "",
+                                            status: "in_progress",
+                                            start_timestamp: new Date().toISOString(),
+                                            timestamp: new Date().toISOString()
+                                        });
+                                    } else if (jsonData.status === "tool_end") {
+                                        if (tools_used.find(t => t.id === jsonData.id)) {
+                                            tools_used = tools_used.map(t => {
+                                                if (t.id === jsonData.id) {
+                                                    t.status = "completed";
+                                                    t.output = typeof jsonData.output === "string" ? jsonData.output : JSON.stringify(jsonData.output);
+                                                    t.timestamp = new Date().toISOString();
+                                                }
+                                                return t;
+                                            });
+                                        }
+                                    }
+                                    const sseData = JSON.stringify(jsonData);
+                                    controller.enqueue(new TextEncoder().encode(`event: delta\ndata: ${sseData}\n\n`));
+
+                                } else if (jsonData.status === "error") {
+                                    const errorData = JSON.stringify({ error: jsonData.detail || "Unknown error" });
+                                    controller.enqueue(new TextEncoder().encode(`event: error\ndata: ${errorData}\n\ndata: [DONE]\n\n`));
+                                    controller.close();
+                                    return;
                                 }
                             } catch (e) {
                                 console.error("Error parsing JSON:", e);
@@ -135,13 +190,8 @@ export async function POST(req: Request) {
                     console.error("Stream error:", error);
                     controller.error(error);
                 } finally {
-                    await saveMessage(conversation_id, {
-                        id: 0,
-                        role: "assistant",
-                        content: completeResponse,
-                        timestamp: new Date().toISOString()
-                    });
-                    
+                    await updateMessage(conversation_id, assistant_message_id, completeResponse, tools_used, undefined, "completed", new Date().toISOString());
+
                     completeResponse = "";
                     reader.releaseLock();
                     controller.close();

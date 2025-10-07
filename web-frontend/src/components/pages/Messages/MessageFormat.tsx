@@ -29,7 +29,10 @@ export default function MessageFormat({ message, }: { message: string }) {
         // Text font
         h1: (props: { node?: unknown, children?: React.ReactNode }) => {
             const { children, ...rest } = props;
-            return <h1 className="text-4xl font-bold text-purple-400 mb-4" {...rest}>{children}</h1>;
+            return <h1 className="text-4xl font-bold text-purple-400 mb-4 group/heading" {...rest}>
+                <span className="text-gray-500 text-3xl opacity-0 group-hover/heading:opacity-100 transition-opacity mr-2 -ml-2 select-none">#</span>
+                {children}
+            </h1>
         },
         h2: (props: { node?: unknown, children?: React.ReactNode }) => {
             const { children, ...rest } = props;
@@ -147,6 +150,23 @@ export default function MessageFormat({ message, }: { message: string }) {
             };
 
             return <CodeBlock />;
+        },
+
+        table: (props: { node?: unknown, children?: React.ReactNode }) => {
+            const { children, ...rest } = props;
+            return <table className="table-auto border-collapse border border-gray-400 mb-4" {...rest}>{children}</table>;
+        },
+        th: (props: { node?: unknown, children?: React.ReactNode }) => {
+            const { children, ...rest } = props;
+            return <th className="border border-gray-400 p-2" {...rest}>{children}</th>;
+        },
+        td: (props: { node?: unknown, children?: React.ReactNode }) => {
+            const { children, ...rest } = props;
+            return <td className="border border-gray-400 p-2" {...rest}>{children}</td>;
+        },
+        tr: (props: { node?: unknown, children?: React.ReactNode }) => {
+            const { children, ...rest } = props;
+            return <tr className="hover:bg-gray-700/50" {...rest}>{children}</tr>;
         },
     };
 

@@ -1,4 +1,4 @@
-import MessageFormat from "@/components/pages/MessageFormat";
+import MessageFormat from "@/components/pages/Messages/MessageFormat";
 import { Suspense } from "react";
 
 export default async function PageTest() {
