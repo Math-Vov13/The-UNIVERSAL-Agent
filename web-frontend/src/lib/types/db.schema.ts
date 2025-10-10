@@ -33,5 +33,6 @@ export const message_schema = z.object({
 
 export const db_schema = z.object({
   id: z.uuidv4(),
+  version: z.number().min(1).max(5).default(1),
   history: z.array(message_schema),
 })

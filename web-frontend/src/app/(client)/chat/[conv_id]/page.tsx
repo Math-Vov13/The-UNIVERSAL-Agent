@@ -119,7 +119,6 @@ export default function ChatPage() {
             prompt,
             envPresets: 'default',
             modelChoice: "auto",
-            modelName: "gemini-2.5-flash",
             conversation_id: conversationId,
             extra: [],
             files: files ? Array.from(files) : [],
@@ -172,11 +171,11 @@ export default function ChatPage() {
                   console.log(`Event ${actualEvent}:`, parsed);
                   
                 }
-                const content = parsed.content || parsed.delta?.content || '';
-                const tool_input = parsed.input || '';
-                const tool_output = parsed.output || '';
-                const tool_name = parsed.name || '';
-                const tool_id = parsed.id || '';
+                const content = parsed.chunk?.text || '';
+                const tool_input = parsed.tool?.input || '';
+                const tool_output = parsed.tool?.output || '';
+                const tool_name = parsed.tool?.name || '';
+                const tool_id = parsed.call_id || '';
 
                 if (content) {
                   accumulatedContent += content;

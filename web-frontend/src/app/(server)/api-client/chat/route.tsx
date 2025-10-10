@@ -58,6 +58,22 @@ export async function POST(req: Request) {
 
     const { prompt, conversation_id } = request.data;
     const history = await getConversation(conversation_id);
+    const user_limits = {
+        "web_search": {
+            "active": true,
+            "limits": {
+                "daily": 100,
+                "monthly": 3000
+            }
+        },
+        "file_upload": {
+            "active": false,
+            "limits": {
+                "daily": 0,
+                "monthly": 0
+            }
+        }
+    }
 
     try {
         const response: Response = await fetch(`${process.env.BACKEND_BASE_URL}/generation/`, {
@@ -107,15 +123,23 @@ export async function POST(req: Request) {
                 }
 
                 let completeResponse = "";
-                let tools_used: z.infer<typeof tool_schema>[] = [];
+                const tools_used: z.infer<typeof tool_schema>[] = [];
+                let stage = 0; // Index to track the current stage of the response
+                let tool_calls_stage = []; // Array to track tool calls per stage
 
                 try {
+                    // Start enconding initial metadata events
+                    controller.enqueue(new TextEncoder().encode(`event: startup\ndata: ${JSON.stringify({
+                        type: "startup", version: "1.0.0", "subscription": "pro", "user_auth": "token:15sd6q4665da7987za8d9s7q8sqd", "tools": user_limits, "model_choosed": "auto"
+                    })}\n\n`));
+
+                    // Start reading the response stream
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) {
                             // Send final DONE message
-                            controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-                            controller.close();
+                            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: "summary", conversation_id, new_envPresets: ["dark_mode", "notifications_on"], total_time: 120, total_tokens: 1500, docs_tokens: 300, tools_tokens: 200 })}\n\n`));
+                            controller.enqueue(new TextEncoder().encode(`event: limits\ndata: ${JSON.stringify({ type: "limits", conversation_id, web_search: { used: 50, remaining: 50, monthly_used: 1500, monthly_remaining: 1500 }, reasoning: { used: 10, remaining: 10 }, models: { "gpt-4": { used: 1000, remaining: 2000 }, "gpt-3.5": { used: 500, remaining: 5000 } }, tokens: { used: 12000, remaining: 8000 } })}\n\n`));
                             break;
                         }
 
@@ -128,59 +152,63 @@ export async function POST(req: Request) {
                                 if (jsonStr === "[DONE]") break;
 
                                 const jsonData = JSON.parse(jsonStr);
-                                if (jsonData.status === "chat_model_stream") {
-                                    if (jsonData.chunk) {
-                                        // Format as SSE with proper structure
-                                        const sseData = JSON.stringify({
-                                            content: jsonData.chunk,
-                                            token: jsonData.tokens || 0
-                                        });
-                                        completeResponse += jsonData.chunk;
-                                        controller.enqueue(new TextEncoder().encode(`event: delta\n\ndata: ${sseData}\n\n`));
-                                    }
+                                const chunkType = jsonData.type as string | undefined;
+                                if (chunkType == "content_moderation") {
+                                    // NOTICE: Just appear once at the beginning of the stream
+                                    controller.enqueue(new TextEncoder().encode(`event: session\ndata: ${JSON.stringify({ type: "session", conversation_id, message_id: assistant_message_id, parent_id: user_message_id, moderate: jsonData.moderate === null ? "safe" : jsonData.moderate })}\n\n`));
+                                    continue;
+                                }
 
-                                } else if (jsonData.status === "file_uploaded" || jsonData.status === "tool_start" || jsonData.status === "tool_end") {
-                                    if (jsonData.status === "file_uploaded") {
-                                        await updateMessage(conversation_id, user_message_id, undefined, undefined, [{
-                                            index: 0,
-                                            name: jsonData.name,
-                                            size: jsonData.size,
-                                            mimeType: jsonData.mimeType,
-                                            type: jsonData.type,
-                                            uri: jsonData.key
-                                        }]);
-                                    } else if (jsonData.status === "tool_start") {
-                                        tools_used.push({
-                                            index: tools_used.length,
-                                            id: jsonData.id,
-                                            name: jsonData.name,
-                                            input: typeof jsonData.input === "string" ? jsonData.input : JSON.stringify(jsonData.input),
-                                            output: "",
-                                            status: "in_progress",
-                                            start_timestamp: new Date().toISOString(),
-                                            timestamp: new Date().toISOString()
-                                        });
-                                    } else if (jsonData.status === "tool_end") {
-                                        if (tools_used.find(t => t.id === jsonData.id)) {
-                                            tools_used = tools_used.map(t => {
-                                                if (t.id === jsonData.id) {
-                                                    t.status = "completed";
-                                                    t.output = typeof jsonData.output === "string" ? jsonData.output : JSON.stringify(jsonData.output);
-                                                    t.timestamp = new Date().toISOString();
-                                                }
-                                                return t;
-                                            });
+                                if (chunkType == "chat_model_start") {
+                                    stage++;
+                                    tool_calls_stage = [];
+
+                                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, m: jsonData.graph_node._provider + "/" + jsonData.graph_node._name, version: 0, o: "add", p: `/message/content/parts/${stage}`, chunk: { parts: [{ type: "text", text: "" }] } })}\n\n`));
+                                    continue;
+
+                                } else if (chunkType == "chat_model_stream") {
+                                    completeResponse += jsonData.parts[0].text; // save response to History
+
+                                    controller.enqueue(new TextEncoder().encode(`event: delta\ndata: ${JSON.stringify({ o: "append", chunk: { text: jsonData.parts[0].text, sources: undefined } })}\n\n`));
+                                    // Start Tool Call Events
+                                    if (jsonData.tool_calls && Array.isArray(jsonData.tool_calls)) {
+                                        for (const tool_call of jsonData.tool_calls) {
+                                            tool_calls_stage.push({ id: tool_call.id, stage: tool_calls_stage.length });
+                                            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, version: 0, call_id: tool_call.id, "o": "add", "p": `/message/content/tools/${stage}/${tool_calls_stage.length - 1}`, error: null, tool: { name: tool_call.name, input: JSON.stringify(tool_call.args) } })}\n\n`));
                                         }
                                     }
-                                    const sseData = JSON.stringify(jsonData);
-                                    controller.enqueue(new TextEncoder().encode(`event: delta\ndata: ${sseData}\n\n`));
+                                    continue;
 
-                                } else if (jsonData.status === "error") {
-                                    const errorData = JSON.stringify({ error: jsonData.detail || "Unknown error" });
+                                } else if (chunkType == "tool_end") {
+                                    const toolIndexTable = tool_calls_stage.findIndex(call => call.id === jsonData.tool_id);
+                                    let tool_stage = -1;
+                                    if (toolIndexTable > -1) {
+                                        tool_stage = tool_calls_stage[toolIndexTable].stage;
+                                    }
+                                    tools_used.push({
+                                        index: tools_used.length + 1,
+                                        id: jsonData.tool_id,
+                                        name: jsonData.tool_name,
+                                        input: jsonData.data.input ? (typeof jsonData.data.input === "string" ? jsonData.data.input : JSON.stringify(jsonData.data.input)) : "",
+                                        output: jsonData.data.output ? (typeof jsonData.data.output === "string" ? jsonData.data.output : JSON.stringify(jsonData.data.output)) : "",
+                                        status: "completed",
+                                        start_timestamp: new Date().toISOString(),
+                                        timestamp: new Date().toISOString()
+                                    })
+
+                                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, version: 0, call_id: jsonData.tool_id, "o": "update", "p": `/message/content/tools/${stage}/${tool_stage}`, error: null, tool: { name: jsonData.tool_name, output: jsonData.data.output, metadata: null } })}\n\n`));
+                                    continue;
+
+                                } else if (chunkType == "chat_model_end") {
+                                    continue;
+
+                                } else if (jsonData.type === "error") {
+                                    const errorData = JSON.stringify({ error: jsonData.error || "Unknown error", err_type: jsonData.error_type || "unknown" });
                                     controller.enqueue(new TextEncoder().encode(`event: error\ndata: ${errorData}\n\ndata: [DONE]\n\n`));
                                     controller.close();
                                     return;
                                 }
+
                             } catch (e) {
                                 console.error("Error parsing JSON:", e);
                             }
@@ -191,6 +219,7 @@ export async function POST(req: Request) {
                     controller.error(error);
                 } finally {
                     await updateMessage(conversation_id, assistant_message_id, completeResponse, tools_used, undefined, "completed", new Date().toISOString());
+                    controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
 
                     completeResponse = "";
                     reader.releaseLock();

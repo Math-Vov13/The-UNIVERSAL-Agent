@@ -4,7 +4,6 @@ from time import time
 import os
 
 from fastapi import FastAPI, Request
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 from endpoints.generation import router as genRouter  # Import the router from generation.py
 

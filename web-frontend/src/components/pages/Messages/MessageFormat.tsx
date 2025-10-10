@@ -92,7 +92,7 @@ export default function MessageFormat({ message, }: { message: string }) {
             );
         },
         img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
-            const { src, alt, ...rest } = props;
+            const { src, alt } = props;
             return (
                 <Image
                     src={typeof src === "string" ? src : ""}

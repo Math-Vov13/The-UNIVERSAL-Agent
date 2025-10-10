@@ -58,6 +58,7 @@ export async function saveMessage(conv_id: string, message: z.infer<typeof messa
     }
     const newEntry = {
         id: conv_id,
+        version: 1,
         history: [message]
     }
     fakedb.push(newEntry)

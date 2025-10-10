@@ -1,0 +1,115 @@
+[
+    {
+        "type": "startup",
+        "version": "1.0.0",
+        "subscription": "pro",
+        "user_auth": true,
+        "tools": {
+            "web_search": {
+                "active": true,
+                "limits": {
+                    "daily": 100,
+                    "monthly": 3000
+                }
+            },
+            "file_upload": {
+                "active": false,
+                "limits": {
+                    "daily": 0,
+                    "monthly": 0
+                }
+            }
+        },
+        "model_choosed": "auto"
+    },
+    {
+        "type": "session",
+        "conv_id": "33bf1d62-fd64-4474-b56b-132a9f2111f5",
+        "message_id": "432a734d-1001-4a6a-8cb6-832eb731f0cf",
+        "parent_id": "7352eb0a-4457-4864-abfb-3f2c784e69bf",
+        "moderate": "safe",
+        "model": "auto"
+    },
+    {
+        "run_id": "run--432a734d-1001-4a6a-8cb6-832eb731f0cf",
+        "m": "gemini",
+        "version": 0,
+        "o": "add",
+        "p": "/message/content/parts/{stage}",
+        "chunk": {
+            "parts": [
+                {
+                    "text": "Bonjour, ",
+                    "type": "text"
+                }
+            ]
+        }
+    },
+    {
+        "o": "append",
+        "chunk": {
+            "text": "comment puis-",
+            "sources": []
+        }
+    },
+    {
+        "run_id": "run--432a734d-1001-4a6a-8cb6-832eb731f0cf",
+        "call_id": "33bf1d62-fd64-4474-b56b-132a9f2111f5",
+        "version": 0,
+        "tool": {
+            "name": "default/web_search",
+            "input": "latest news on AI",
+            "output": "AI is transforming the tech industry...",
+            "metadata": {
+                "tokens_consumed": 200,
+                "time": 5.0
+            }
+        },
+        "error": null,
+        "o": "add;update",
+        "p": "/message/content/tools/{stage}/{tool_stage}"
+    },
+    {
+        "type": "title_generation",
+        "conv_id": "33bf1d62-fd64-4474-b56b-132a9f2111f5",
+        "title": "Discussion on AI"
+    },
+    {
+        "type": "summary",
+        "new_envPresets": [
+            "dark_mode",
+            "notifications_on"
+        ],
+        "total_time": 120,
+        "total_tokens": 1500,
+        "docs_tokens": 300,
+        "tools_tokens": 200
+    },
+    {
+        "type": "limits",
+        "web_search": {
+            "used": 50,
+            "remaining": 50,
+            "monthly_used": 1500,
+            "monthly_remaining": 1500
+        },
+        "reasoning": {
+            "used": 10,
+            "remaining": 10
+        },
+        "models": {
+            "gpt-4": {
+                "used": 1000,
+                "remaining": 2000
+            },
+            "gpt-3.5": {
+                "used": 500,
+                "remaining": 5000
+            }
+        },
+        "tokens": {
+            "used": 12000,
+            "remaining": 8000
+        }
+    }
+]
