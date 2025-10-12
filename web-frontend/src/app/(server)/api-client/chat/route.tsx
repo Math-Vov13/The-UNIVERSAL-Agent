@@ -7,6 +7,7 @@ const fileSchema = z.object({
     size: z.number().max(5 * 1024 * 1024), // Max 5MB
     mimeType: z.string(),
     type: z.string(),
+    lastModified: z.number(),
     base64: z.string()
 });
 
@@ -137,7 +138,9 @@ export async function POST(req: Request) {
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) {
+                            if (!controller) return;
                             // Send final DONE message
+                            // TODO: controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: "title_generation", conversation_id, title: "Discussion on AI" })}\n\n`));
                             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: "summary", conversation_id, new_envPresets: ["dark_mode", "notifications_on"], total_time: 120, total_tokens: 1500, docs_tokens: 300, tools_tokens: 200 })}\n\n`));
                             controller.enqueue(new TextEncoder().encode(`event: limits\ndata: ${JSON.stringify({ type: "limits", conversation_id, web_search: { used: 50, remaining: 50, monthly_used: 1500, monthly_remaining: 1500 }, reasoning: { used: 10, remaining: 10 }, models: { "gpt-4": { used: 1000, remaining: 2000 }, "gpt-3.5": { used: 500, remaining: 5000 } }, tokens: { used: 12000, remaining: 8000 } })}\n\n`));
                             break;
@@ -207,6 +210,7 @@ export async function POST(req: Request) {
                                     controller.enqueue(new TextEncoder().encode(`event: error\ndata: ${errorData}\n\ndata: [DONE]\n\n`));
                                     controller.close();
                                     return;
+
                                 }
 
                             } catch (e) {

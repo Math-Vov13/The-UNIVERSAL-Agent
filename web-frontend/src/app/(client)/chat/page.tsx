@@ -1,14 +1,25 @@
 'use client';
-
 import BlurText from "@/components/BlurText";
 import Magnet from "@/components/Magnet";
 import Orb from "@/components/Orb";
 import BadgeContainer from "@/components/pages/BadgesContainer";
 import ChatBarProps from "@/components/pages/ChatBar";
+import { useHistory } from "@/components/Providers/historyProvider";
 import { ShootingStars } from "@/components/ui/shooting-stars";
 import { StarsBackground } from "@/components/ui/stars-background";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
+function ChatBarSuspense({ start }: { start: { content: string, files: FileList | null } | undefined }) {
+    const params = useSearchParams();
+    const m = (params.get('m') || '').trim();
+
+    return <ChatBarProps stateBar="create" text={m} blocked={start !== undefined} />;
+}
+
 
 export default function ChatPage() {
+    const { start } = useHistory();
     return (
         <main className="flex flex-col h-screen">
             <div className="absolute top-[10%] left-0 z-[-1] w-full h-[80%] pointer-events-none">
@@ -29,7 +40,9 @@ export default function ChatPage() {
                 <div className="flex items-center justify-center"></div>
                 <div className="flex items-center justify-center min-w-[300px] sm:w-full md:w-2/5">
                 <Magnet padding={50} disabled={false} magnetStrength={50} className="w-full" >
-                    <ChatBarProps stateBar="create" />
+                    <Suspense fallback={<ChatBarProps stateBar="create" blocked={true} text="loading..." />}>
+                        <ChatBarSuspense start={start} />
+                    </Suspense>
                 </Magnet>
                 </div>
             </div>

@@ -10,6 +10,10 @@ export async function GET(req: Request) {
 
     try {
         const history = await getConversation(conversationId);
+        if (!history || history.length === 0) {
+            return new Response("Not authorized", { status: 403 });
+        }
+
         return new Response(JSON.stringify(history), { status: 200, headers: { "Content-Type": "application/json" } });
     } catch (error) {
         console.error("Error fetching conversation history:", error);

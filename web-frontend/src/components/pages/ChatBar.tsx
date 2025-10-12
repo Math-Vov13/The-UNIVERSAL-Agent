@@ -1,26 +1,40 @@
 "use client";
 import { Box, CircleFadingPlus, SendHorizonal, X } from "lucide-react";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import RotatingText from "../RotatingText";
 import { Badge } from "../ui/badge";
+import { useHistory } from "../Providers/historyProvider";
 
 type ChatBarProps = {
+    text?: string;
+    blocked?: boolean;
     stateBar: "create" | "chat" | "docs";
-    handleSubmit?: (message: string, files: FileList | null) => void | Promise<void>;
+    // handleSubmit?: (message: string, files: FileList | null) => void | Promise<void>;
 };
 
 
-export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
-    const MaxSizeUpload = 5 * 1024 * 1024; // 5MB
-    const MaxTotalSizeUpload = 20 * 1024 * 1024; // 20MB
-    const MaxFilesUpload = 5; // 5 files
-    const [loading, setLoading] = useState(false);
-    const [input, setInput] = useState("");
+// Limitations
+const MaxSizeUpload = 5 * 1024 * 1024; // 5MB
+const MaxTotalSizeUpload = 20 * 1024 * 1024; // 20MB
+const MaxFilesUpload = 5; // 5 files
+
+export default function ChatBarProps({ stateBar, text, blocked }: ChatBarProps) {
+    const { isLoading, conversationId, sendMessage, startNewConversation } = useHistory();
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [input, setInput] = useState(text || "");
     const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const chatInputRef = useRef<HTMLInputElement>(null);
 
     const router = useRouter();
+    const isLocallyBlocked = blocked || isSubmitting;
+
+    // Always focus the input when the component is mounted or when the conversationId changes
+    useEffect(() => {
+        chatInputRef.current?.focus();
+    }, [conversationId]);
 
 
     function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -57,9 +71,9 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
         setSelectedFiles(prevFiles => {
             const newFiles = Array.from(prevFiles || []);
             newFiles.push(...Array.from(validFiles || []));
-            
+
             if (newFiles.length === 0) return null;
-            
+
             const dataTransfer = new DataTransfer();
             newFiles.forEach(file => dataTransfer.items.add(file));
             return dataTransfer.files;
@@ -82,13 +96,19 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
 
     async function handleFormSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (loading) return;
+        if (isLoading) return;
+        if (isLocallyBlocked) return;
         if (input.trim() === "" && !selectedFiles) return;
-        setLoading(true);
+        setIsSubmitting(true);
+        setInput("");
+        setSelectedFiles(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
 
         try {
-            if (handleSubmit) {
-                await Promise.resolve(handleSubmit(input, selectedFiles));
+            if (stateBar === "chat") {
+                await sendMessage(input, selectedFiles);
 
             } else {
                 const prompt = stateBar === "docs" ? "What are the key points of this document?" : input;
@@ -108,28 +128,20 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
                     return;
                 }
 
+                await startNewConversation(input, selectedFiles);
                 const responseData = await response.json();
                 setTimeout(() => {
-                    const params = new URLSearchParams();
-                    params.set('first', input);
-                    router?.push(`/chat/${responseData.conversation_id.toString()}?${params.toString()}`);
+                    router?.push(`/chat/${responseData.conversation_id.toString()}`);
                 }, 100);
                 // window.history.pushState(null, '', `/chat/${responseData.conversation_id.toString()}`)
             }
 
-            setInput("");
-            setSelectedFiles(null);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
-
         } catch (error) {
-
             console.error("Error submitting chat:", error);
 
         } finally {
-            // navigator.vibrate(100); cause issues on some devices
-            setLoading(false);
+            setIsSubmitting(false);
+
         }
     }
 
@@ -139,7 +151,8 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
             <form className="flex flex-col border border-purple-900 bg-gray-900/40 backdrop-blur-md rounded-lg border-2 px-8 py-5 w-full focus-within:border-4 transition-all">
                 <div className="flex items-center mb-2 px-4 py-2">
                     <input
-                        disabled={loading}
+                        ref={chatInputRef}
+                        // disabled={isBlocked}
                         name="chat-input"
                         type="text"
                         placeholder="Hey, how can I assist you today?"
@@ -149,9 +162,9 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
                     />
                 </div>
                 <section className={`flex w-full max-w-full items-center justify-start gap-2 px-4 py-2 rounded-lg transition-colors duration-300 ease-in-out ${selectedFiles && selectedFiles.length > 0 ? "bg-gray-950" : "bg-gray-900/40 hover:bg-gray-900/90"}`}>
-                    <div title="Attach files" onClick={handlePlusClick} className="h-full justify-start text-purple-500 hover:text-purple-700 cursor-pointer relative">
+                    <div title="Attach files" onClick={handlePlusClick} className={`h-full justify-start text-purple-500 hover:text-purple-700 cursor-pointer relative ${isLocallyBlocked ? "pointer-events-none opacity-50" : ""}`}>
                         <input
-                            disabled={loading}
+                            disabled={isLocallyBlocked}
                             ref={fileInputRef}
                             title="Attach files"
                             name="file-upload"
@@ -163,7 +176,7 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
                         <CircleFadingPlus />
                     </div>
                     <div className="w-2"></div>
-                    <Box className="w-6 h-full text-purple-500 hover:text-purple-700 cursor-pointer" />
+                    <Box className={`w-6 h-full text-purple-500 hover:text-purple-700 cursor-pointer ${isLocallyBlocked ? "pointer-events-none opacity-50" : ""}`} />
                     <div className="w-2"></div>
                     {selectedFiles && selectedFiles.length > 0 && (
                         <div className="flex flex-grow flex-wrap gap-2 max-h-24 overflow-y-auto">
@@ -188,7 +201,7 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
 
                     {(input.trim() !== "") && (
                         <button
-                            disabled={loading}
+                            disabled={isLocallyBlocked}
                             type="submit"
                             name="send-message"
                             title="Send message"
@@ -201,16 +214,16 @@ export default function ChatBarProps({ stateBar, handleSubmit }: ChatBarProps) {
                 </section>
             </form>
             <RotatingText
-              texts={['You can attach a maximum of 5 files at once.', 'Remember to verify the information given by AI.', 'You can ask me to analyze documents for you.', 'You can upload images, PDFs, Word documents, Excel files, and more.', 'Feel free to ask me anything!']}
-              mainClassName="text-sm text-gray-500 text-center mt-2 justify-center"
-              staggerFrom={"last"}
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "-120%" }}
-              staggerDuration={0.025}
-              splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
-              transition={{ type: "spring", damping: 30, stiffness: 400 }}
-              rotationInterval={8000}
+                texts={['You can attach a maximum of 5 files at once.', 'Remember to verify the information given by AI.', 'You can ask me to analyze documents for you.', 'You can upload images, PDFs, Word documents, Excel files, and more.', 'Feel free to ask me anything!']}
+                mainClassName="text-sm text-gray-500 text-center mt-2 justify-center"
+                staggerFrom={"last"}
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "-120%" }}
+                staggerDuration={0.025}
+                splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
+                transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                rotationInterval={8000}
             />
         </div>
     );
