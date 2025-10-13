@@ -13,6 +13,7 @@ const svg_tool: Record<string, JSX.Element> = {
 }
 
 export function ToolUsed({ id, tool }: { id: number, tool: z.infer<typeof tool_schema> }) {
+    if (tool.name === "Classification") return null;
     const [isOpen, setIsOpen] = useState(false);
 
     return (

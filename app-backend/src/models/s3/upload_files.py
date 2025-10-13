@@ -1,8 +1,9 @@
 import io
 import boto3
 from botocore.exceptions import NoCredentialsError
-import datetime, os
+from models.s3.utils import generate_s3_object_name
 
+from typing import Literal
 from dotenv import load_dotenv
 from config.config import CONFIG
 load_dotenv()
@@ -11,15 +12,8 @@ load_dotenv()
 #     "S3_BUCKET_NAME": "the-universal-agent"
 # }
 
-def generate_s3_object_name(file_name: str, content_type: str) -> str:
-    """Génère un nom d'objet S3 unique en combinant le nom de fichier, la date et l'heure actuelles."""
-    base_name, ext = os.path.splitext(os.path.basename(file_name))
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    object_name = f"{str.split(content_type, '/')[0]}/{base_name}-{timestamp}{ext}"
-    return object_name.replace(" ", "_").lower()
 
-
-def upload_files_to_s3(file_content: bytes, file_name: str, content_type: str = "text/plain") -> str | None:
+def upload_files_to_s3(file_content: bytes, file_name: str, content_type: str = "text/plain", role: Literal["upload", "generation"]= "upload") -> str | None:
     """
     Charge des données binaires (bits) directement depuis la mémoire vers un bucket S3.
  
@@ -43,8 +37,9 @@ def upload_files_to_s3(file_content: bytes, file_name: str, content_type: str = 
         
         #new_name = new_name.replace(" ", "_").lower()
 
-        s3.upload_fileobj(file_obj, CONFIG.S3_BUCKET_NAME, object_name, ExtraArgs=extra_args)
-        print(f"Données chargées avec succès vers {CONFIG.S3_BUCKET_NAME}/{object_name}")
+        folder_name = "user_upload/" if role == "upload" else "generated/"
+        s3.upload_fileobj(file_obj, CONFIG.S3_BUCKET_NAME, folder_name + object_name, ExtraArgs=extra_args)
+        print(f"Données chargées avec succès vers {CONFIG.S3_BUCKET_NAME}/{folder_name}{object_name}")
         return object_name
 
     except NoCredentialsError:

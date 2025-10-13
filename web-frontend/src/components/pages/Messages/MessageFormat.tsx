@@ -37,13 +37,16 @@ export default function MessageFormat({ message, }: { message: string }) {
         h2: (props: { node?: unknown, children?: React.ReactNode }) => {
             const { children, ...rest } = props;
             return <h2 className="text-3xl font-bold text-purple-400 mb-4" {...rest}>
-                <span className="text-gray-500 text-2xl opacity-0 group-hover/heading:opacity-100 transition-opacity mr-2 -ml-2 select-none">##</span>
+                <span className="text-gray-500 text-2xl opacity-0 group-hover/heading:opacity-100 transition-opacity mr-2 -ml-2 select-none">#</span>
                 {children}
             </h2>
         },
         h3: (props: { node?: unknown, children?: React.ReactNode }) => {
             const { children, ...rest } = props;
-            return <h3 className="text-2xl font-bold text-purple-400 mb-4" {...rest}>{children}</h3>;
+            return <h3 className="text-2xl font-bold text-purple-400 mb-4" {...rest}>
+                <span className="text-gray-500 text-2xl opacity-0 group-hover/heading:opacity-100 transition-opacity mr-2 -ml-2 select-none">##</span>
+                {children}
+            </h3>;
         },
         h4: (props: { node?: unknown, children?: React.ReactNode }) => {
             const { children, ...rest } = props;
