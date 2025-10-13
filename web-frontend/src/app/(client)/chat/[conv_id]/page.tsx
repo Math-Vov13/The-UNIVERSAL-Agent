@@ -2,7 +2,8 @@
 import ChatBarProps from "@/components/pages/ChatBar";
 import ChatWindow from "@/components/pages/ChatWindow";
 import { useHistory } from "@/components/Providers/historyProvider";
-import { BackgroundBeams } from "@/components/ui/background-beams";
+import { ShootingStars } from "@/components/ui/shooting-stars";
+import { StarsBackground } from "@/components/ui/stars-background";
 import { PlusSquare } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -11,7 +12,7 @@ import { Suspense } from "react";
 
 
 export default function ChatPage() {
-  const { isLoading, history, isThinking, isAuthorized } = useHistory();
+  const { isLoading, error, history, isWorking, isAuthorized, retrySendMessage } = useHistory();
 
   if (!isAuthorized) {
     return (
@@ -44,6 +45,8 @@ export default function ChatPage() {
             </div>
           </div>
         </div>
+        <ShootingStars className="z-[-1]" />
+        <StarsBackground className="z-[-2]" />
       </main>
     );
   }
@@ -69,16 +72,22 @@ export default function ChatPage() {
             ) : (
               <ChatWindow
                 messages={history}
-                isLoading={isThinking}
+                isLoading={isWorking}
               />
             )}
           </Suspense>
           <div className="p-4 px-12 rounded-t-3xl bg-gray-800/10 backdrop-blur-md">
-            <ChatBarProps stateBar="chat" blocked={isThinking} />
+            {error && (
+              <div className="p-4 bg-red-800/30 text-red-300 rounded mb-4 text-center" role="alert">
+                <span>Une erreur est survenue lors de l'envoie de la requête. </span><span><button type="button" className="ml-2 underline hover:text-white hover:bg-gray-700 cursor-pointer" onClick={() => retrySendMessage()}>Réessayer</button> ?</span>
+              </div>
+            )}
+            <ChatBarProps stateBar="chat" blocked={isWorking} />
           </div>
         </div>
       </div>
-      <BackgroundBeams className="z-[-1]" />
+      <ShootingStars className="z-[-1]" />
+      <StarsBackground className="z-[-2]" />
     </main>
   );
 }

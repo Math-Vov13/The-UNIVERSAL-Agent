@@ -8,7 +8,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 
 from rag.config import llm
-from rag.tools.basics import code_interpreter
+from rag.tools.code_sandbox import code_interpreter
 from rag.tools.satellites import get_satellite_position, get_tle
 from langchain_tavily import TavilySearch
 
@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-tools = [TavilySearch(max_results=5), get_satellite_position, get_tle, code_interpreter]
+tools = [TavilySearch(name="web_search", max_results=7), get_satellite_position, get_tle, code_interpreter]
 system_prompt_content = open("src/docs/GEMINI_SYSTEM_PROMPT.md").read().encode("utf-8")
 
 

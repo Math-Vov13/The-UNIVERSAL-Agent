@@ -36,7 +36,10 @@ export default function MessageFormat({ message, }: { message: string }) {
         },
         h2: (props: { node?: unknown, children?: React.ReactNode }) => {
             const { children, ...rest } = props;
-            return <h2 className="text-3xl font-bold text-purple-400 mb-4" {...rest}>{children}</h2>;
+            return <h2 className="text-3xl font-bold text-purple-400 mb-4" {...rest}>
+                <span className="text-gray-500 text-2xl opacity-0 group-hover/heading:opacity-100 transition-opacity mr-2 -ml-2 select-none">##</span>
+                {children}
+            </h2>
         },
         h3: (props: { node?: unknown, children?: React.ReactNode }) => {
             const { children, ...rest } = props;
@@ -82,12 +85,12 @@ export default function MessageFormat({ message, }: { message: string }) {
                 <a
                     target='_blank'
                     rel='noopener noreferrer'
-                    className="inline-flex items-center gap-1 text-gray-500 hover:text-purple-500 hover:underline"
+                    className="inline-flex items-baseline text-gray-500 hover:text-purple-500 hover:underline"
                     href={href}
                     {...rest}
                 >
-                    {String(children)}
-                    <Link className="w-4 h-4" />
+                    <span className="whitespace-pre-wrap leading-tight">{children}</span>
+                    <Link className="ml-2 w-4 h-4 inline-block flex-shrink-0 self-baseline" />
                 </a>
             );
         },

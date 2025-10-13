@@ -1,3 +1,5 @@
+import io
+import sys
 from langchain_core.tools import tool
 
 
@@ -20,11 +22,18 @@ from langchain_core.tools import tool
 
 
 @tool
-def code_interpreter(code: str) -> str:
-    """Execute a piece of Python code and return the result"""
+def code_interpreter(code_string: str) -> str:
+    """Execute a piece of Python code and return the result. Python version: 1.10 used."""
+    old_stdout = sys.stdout
+    redirected_output = io.StringIO()
+    sys.stdout = redirected_output
+ 
     try:
         # Warning: Using eval can be dangerous. This is for illustration only.
-        result = eval(code)
-        return str(result)
+        exec(code_string)
+        output = redirected_output.getvalue()
     except Exception as e:
-        return f"Error executing code: {str(e)}"
+        output = f"Erreur lors de l'exécution du code : {e}"
+    finally:
+        sys.stdout = old_stdout
+    return output

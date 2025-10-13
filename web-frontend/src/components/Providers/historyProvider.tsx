@@ -8,13 +8,15 @@ import { file_schema, message_schema } from '@/lib/types/client.schema';
 interface HistoryContextType {
     conversationId: string;
     start: StartType | undefined;
+    error: boolean;
     isLoading: boolean;
-    isThinking: boolean;
+    isWorking: boolean;
     isAuthorized: boolean;
 
     history: z.infer<typeof message_schema>[];
+    retrySendMessage: () => Promise<void>;
     startNewConversation: (prompt: string, files: FileList | null) => Promise<void>;
-    sendMessage: (message: string, files: FileList | null) => Promise<void>;
+    sendMessage: (message: string, files?: FileList | null, preparedFiles?: z.infer<typeof file_schema>[]) => Promise<void>;
     clearMessages: () => Promise<void>;
 }
 
@@ -65,10 +67,11 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
     const conversationId = Array.isArray(conv_id) ? (conv_id[0] ?? "") : (conv_id ?? "");
 
     const [start, setStart] = useState<StartType | undefined>(undefined);
+    const [error, setError] = useState<boolean>(false);
     const [history, setHistory] = useState<z.infer<typeof message_schema>[]>([]);
     const [isAuthorized, setIsAuthorized] = useState<boolean>(true);
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [isThinking, setIsThinking] = useState<boolean>(false);
+    const [isWorking, setIsWorking] = useState<boolean>(false);
 
     const conversationIdRef = useRef("");
     const messageIdRef = useRef("0");
@@ -87,8 +90,9 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
     // Fetch conversation history when conversationId changes
     useEffect(() => {
         const fetchConversationHistory = async () => {
+            setError(false);
             setIsAuthorized(true);
-            setIsThinking(false);
+            setIsWorking(false);
 
             // Reset history if conversationId has changed
             if (conversationIdRef.current !== conversationId) {
@@ -160,11 +164,23 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
         setStart({ content: prompt, files });
     }
 
-    const sendMessage = useCallback(async (message: string, files: FileList | null) => {
+    const retrySendMessage = useCallback(async () => {
+        if (error) {
+            const lastMessage = history[history.length - 2];
+            if (lastMessage) {
+                setHistory((prev) => prev.slice(0, -2));
+                messagesRef.current = messagesRef.current.slice(0, -2);
+                messageIdRef.current = String(Number(messageIdRef.current) - 2);
+                await sendMessage(lastMessage.content, undefined, lastMessage.files);
+            }
+        }
+    }, [error]);
+
+    const sendMessage = useCallback(async (message: string, files?: FileList | null, preparedFiles?: z.infer<typeof file_schema>[]) => {
         const trimmedMessage = message.trim();
         if (!trimmedMessage) return;
 
-        const filesArray = await convert_file_format(files);
+        const filesArray = files ? await convert_file_format(files) : (preparedFiles || []);
         messageIdRef.current += 1;
         const userMessage: z.infer<typeof message_schema> = {
             id: messageIdRef.current,
@@ -176,6 +192,7 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
 
         const nextMessages = [...messagesRef.current, userMessage];
         messagesRef.current = nextMessages;
+        setError(false);
         setHistory(nextMessages);
 
         // Créer le message assistant vide pour le streaming
@@ -188,7 +205,7 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
         };
 
         // Ajouter le message vide à l'état
-        setIsThinking(true);
+        setIsWorking(true);
         setHistory((previous) => {
             const next = [...previous, assistantMessage];
             messagesRef.current = next;
@@ -241,6 +258,10 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
             });
 
             if (!response.ok) {
+                setError(true);
+                if (response.status === 403) {
+                    setIsAuthorized(false);
+                }
                 throw new Error(`Request failed with status ${response.status}`);
             }
 
@@ -263,13 +284,9 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
 
                 const chunk = decoder.decode(value, { stream: true });
                 const lines = chunk.split('\n');
-                let actualEvent = '';
 
                 for (const line of lines) {
-                    if (line.startsWith('event: ')) {
-                        actualEvent = line.slice(7).trim();
-
-                    } else if (line.startsWith('data: ')) {
+                    if (line.startsWith('data: ')) {
                         const data = line.slice(6).trim();
 
                         if (data === '[DONE]') {
@@ -344,7 +361,6 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
                         } catch (parseError) {
                             console.warn('Failed to parse SSE data:', parseError);
                         }
-                        actualEvent = '';
                     }
                 }
 
@@ -371,7 +387,7 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
                 });
             }
         } finally {
-            setIsThinking(false);
+            setIsWorking(false);
         }
     }, [conversationId]);
 
@@ -382,11 +398,13 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
     const value = {
         conversationId,
         start,
+        error,
         isLoading,
-        isThinking,
+        isWorking,
         isAuthorized,
 
         history,
+        retrySendMessage,
         startNewConversation,
         sendMessage,
         clearMessages,
