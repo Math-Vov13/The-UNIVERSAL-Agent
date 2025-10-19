@@ -5,7 +5,7 @@ import { useState } from "react";
 import z from "zod";
 import { tool_schema } from "@/lib/types/client.schema";
 
-const svg_tool: Record<string, JSX.Element> = {
+export const svg_tool: Record<string, JSX.Element> = {
     web_search: <Globe className="inline-block mr-1 p-1" />,
     code_interpreter: <CodeSquareIcon className="inline-block mr-1 p-1" />,
     get_satellite_position: <Satellite className="inline-block mr-1 p-1" />,
@@ -13,7 +13,6 @@ const svg_tool: Record<string, JSX.Element> = {
 }
 
 export function ToolUsed({ id, tool }: { id: number, tool: z.infer<typeof tool_schema> }) {
-    if (tool.name === "Classification") return null;
     const [isOpen, setIsOpen] = useState(false);
 
     return (

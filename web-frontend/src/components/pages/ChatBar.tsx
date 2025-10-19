@@ -10,7 +10,6 @@ type ChatBarProps = {
     text?: string;
     blocked?: boolean;
     stateBar: "create" | "chat" | "docs";
-    // handleSubmit?: (message: string, files: FileList | null) => void | Promise<void>;
 };
 
 

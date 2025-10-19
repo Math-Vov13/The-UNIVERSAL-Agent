@@ -78,7 +78,7 @@ export default function ChatPage() {
           </Suspense>
           <div className="p-4 px-12 rounded-t-3xl bg-gray-800/10 backdrop-blur-md">
             {error && (
-              <div className="p-4 bg-red-800/30 text-red-300 rounded mb-4 text-center" role="alert">
+              <div className="p-4 bg-red-800/30 text-red-300 rounded-md mb-4 text-center" role="alert">
                 <span>Une erreur est survenue lors de l&apos;envoi de la requête. </span><span><button type="button" className="ml-2 underline hover:text-white hover:bg-gray-700 cursor-pointer" onClick={() => retrySendMessage()}>Réessayer</button> ?</span>
               </div>
             )}

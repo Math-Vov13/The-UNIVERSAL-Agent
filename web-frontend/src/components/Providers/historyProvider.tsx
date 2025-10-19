@@ -201,6 +201,7 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
             id: messageIdRef.current,
             role: "assistant",
             content: "",
+            status: "pending",
             timestamp: new Date().toISOString(),
         };
 
@@ -368,6 +369,21 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
                     break;
                 }
             }
+            if (isMountedRef.current) {
+                setHistory((previous) => {
+                    const updated = [...previous];
+                    const lastIndex = updated.length - 1;
+                    if (lastIndex >= 0 && updated[lastIndex].id === assistantMessage.id) {
+                        updated[lastIndex] = {
+                            ...updated[lastIndex],
+                            status: "completed",
+                        };
+                    }
+                    messagesRef.current = updated;
+                    return updated;
+                });
+            }
+
 
         } catch (error) {
             console.error("Error generating response:", error);
@@ -379,6 +395,7 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
                     if (lastIndex >= 0 && updated[lastIndex].id === assistantMessage.id) {
                         updated[lastIndex] = {
                             ...updated[lastIndex],
+                            status: "failed",
                             content: "Sorry, an error occurred. Please try again.",
                         };
                     }

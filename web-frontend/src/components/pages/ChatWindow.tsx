@@ -25,7 +25,7 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
     return (
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             {messages.map((message, index) => ( message.content.trim() !== "" && (
-                <ChatMessage key={index} index={message.id} message={message} /> )
+                <ChatMessage key={index} index={message.id} message={message} isLast={index === messages.length - 1} /> )
             ))}
 
             {isLoading && (

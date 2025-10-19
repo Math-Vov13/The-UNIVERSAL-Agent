@@ -5,7 +5,7 @@ from langchain.schema import SystemMessage
 from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-
+from langgraph.checkpoint.memory import InMemorySaver
 
 from rag.config import llm, llm_pro
 from rag.tools.code_sandbox import code_interpreter
@@ -13,9 +13,17 @@ from rag.tools.files_generation import generate_image
 from rag.tools.satellites import get_satellite_position, get_tle
 from langchain_tavily import TavilySearch
 
+import os
 from dotenv import load_dotenv
 load_dotenv()
 
+POSTGRES_USER = os.getenv("POSTGRES_USER")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+POSTGRES_DB = os.getenv("POSTGRES_DB")
+
+checkpointer = InMemorySaver()
 
 
 ## TOOLS
@@ -64,5 +72,6 @@ graph_builder.add_conditional_edges("generation_task", tools_condition)
 graph_builder.add_edge("tools", "generation_task")
 graph_builder.add_edge(START, "generation_task")
 graph = graph_builder.compile(
+    checkpointer=checkpointer
     # interrupt_before=["tools"], # TODO: man-in-the-loop for user validation
 )

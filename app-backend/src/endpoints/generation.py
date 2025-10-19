@@ -17,7 +17,7 @@ from schema.generation_streaming import (
 )
 
 import base64
-from rag.server import graph
+from rag.server import graph, checkpointer
 from uuid import uuid4
 import time
 
@@ -56,7 +56,7 @@ def convert_history(history_items):
     return messages
 
 
-def _create_event_stream(request_id: str, generation, uploaded_files=[]):
+def _create_event_stream(request_id: str, generation):
     async def event_stream():
 
         yield f"data: {RequestConnect(request_id=request_id).model_dump_json()}\n\n"
@@ -105,14 +105,15 @@ def _create_event_stream(request_id: str, generation, uploaded_files=[]):
                     # print("Chat model stream:", chunk, flush=True)
                     delta_chunk = chunk.get("data").get("chunk").model_dump()
                     yield f"event: delta\ndata: {ChunkMessage(run_id=chunk.get('run_id'), parts=[{"type": "text", "text": delta_chunk.get('content', '')}], tool_calls=delta_chunk.get('tool_calls', []), response_metadata=delta_chunk.get('response_metadata', {}), usage_metadata=delta_chunk.get('usage_metadata', {})).model_dump_json()}\n\n"
+            yield f"data: {RequestEnd(request_id=request_id, total_time=time.time() - start_time).model_dump_json()}\n\n"
 
         except Exception as e:
             yield f"data: {ErrorResponse(error=str(e), error_type=type(e).__name__).model_dump_json()}\n\n"
-            yield f"data: [DONE]\n\n"
-            return
-
-        yield f"data: {RequestEnd(request_id=request_id, total_time=time.time() - start_time).model_dump_json()}\n\n"
-        yield f"data: [DONE]\n\n"
+        
+        finally:
+            checkpointer.delete_thread(request_id)
+            yield f"data: [DONE]\n\n"      
+    
     return event_stream
 
 
@@ -127,23 +128,28 @@ def create_generation_json(request: GenerationRequest) -> StreamingResponse:
     if request.files:
         for file in request.files:
             print("Processing file:", file.name, file.mimeType, flush=True)
-            full_content = file.base64.split(f"data:{file.mimeType};base64,")[1]
-            if full_content:
-                decoded_bytes = base64.b64decode(full_content)
-                obj_name = upload_files_to_s3(decoded_bytes, file.name, file.mimeType)
-                if obj_name:
-                    uploaded_files.append({
-                        "name": file.name,
-                        "size": file.size,
-                        "mimeType": file.mimeType,
-                        "type": file.type,
-                        "key_name": obj_name
-                    })
+            # full_content = file.base64.split(f"data:{file.mimeType};base64,")[1]
+            # if full_content:
+            #     decoded_bytes = base64.b64decode(full_content)
+            #     obj_name = upload_files_to_s3(decoded_bytes, file.name, file.mimeType)
+            #     if obj_name:
+            #         uploaded_files.append({
+            #             "name": file.name,
+            #             "size": file.size,
+            #             "mimeType": file.mimeType,
+            #             "type": file.type,
+            #             "key_name": obj_name
+            #         })
             content.append({
                 "type": "image_url",
                 "image_url": {"url": file.base64}
             })
 
+    config = {
+        "configurable": {
+            "thread_id": generation_id
+        }
+    }
     messages = convert_history(request.history) + [HumanMessage(content=content)]
-    generation = graph.astream_events({"messages": messages})
-    return StreamingResponse(_create_event_stream(request_id=generation_id, generation=generation, uploaded_files=uploaded_files)(), media_type="text/event-stream")
+    generation = graph.astream_events({"messages": messages}, config=config)
+    return StreamingResponse(_create_event_stream(request_id=generation_id, generation=generation)(), media_type="text/event-stream")
