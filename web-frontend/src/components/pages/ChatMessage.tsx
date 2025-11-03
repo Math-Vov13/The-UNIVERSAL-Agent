@@ -1,15 +1,16 @@
 import z from "zod";
-import { YouTubeEmbed } from "./Messages/YoutubeEmbed";
+// import { YouTubeEmbed } from "./Messages/YoutubeEmbed";
 import MessageFormat from "./Messages/MessageFormat";
+import { Badge } from "@/components/ui/badge";
 // import { ToolUsed } from "./Messages/ToolUsed";
-import { message_schema } from "@/lib/types/client.schema";
-import { EarthIcon, GitBranchPlus, Globe, LucideBookmarkPlus, LucideCopy, LucideEdit, RefreshCcwDot, ThumbsDown, ThumbsUp, Trash2, Wrench } from "lucide-react";
+import { message_schema, tool_schema } from "@/lib/types/client.schema";
+import { EarthIcon, ExternalLink, GitBranchPlus, Globe, LucideBookmarkPlus, LucideCopy, LucideEdit, RefreshCcwDot, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { svg_tool } from "./Messages/ToolUsed";
 
 
 export default function ChatMessage({ message, index, isLast }: { message: z.infer<typeof message_schema>, index: string, isLast: boolean }) {
-    const urls = message.content.match(/(https?:\/\/[^\s]+)/g) || [];
+    // const urls = message.content.match(/(https?:\/\/[^\s]+)/g) || [];
     const formatTime = (timestamp: string) => {
         const d = new Date(timestamp);
         const weekday = d.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
@@ -19,6 +20,40 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
         });
         return `${weekday}, ${time}`;
     }
+
+    const tools_used = message.content.filter(part => part && 'status' in part && 'name' in part) as unknown as z.infer<typeof tool_schema>[];
+    const textPartCount = message.content.filter((part) => !!part && "type" in part && part.type === "text").length;
+    const shouldShowNoContentFallback = message.status === "completed" && textPartCount === 0;
+
+    const getSearchResultsCount = (output: unknown): number => {
+        if (!output) {
+            return 0;
+        }
+
+        const resolveResults = (value: unknown): unknown => {
+            if (Array.isArray(value)) {
+                return value;
+            }
+            if (value && typeof value === "object") {
+                return (value as { results?: unknown }).results ?? [];
+            }
+            return [];
+        };
+
+        if (typeof output === "string") {
+            try {
+                const parsed = JSON.parse(output);
+                const results = resolveResults(parsed);
+                return Array.isArray(results) ? results.length : 0;
+            } catch (error) {
+                console.warn("Failed to parse tool output", error);
+                return 0;
+            }
+        }
+
+        const results = resolveResults(output);
+        return Array.isArray(results) ? results.length : 0;
+    };
 
     return (
         <div
@@ -32,10 +67,10 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
             {message.role === 'user' ? (
                 <>
                     <div className="group relative max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg mb-10 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl bg-gray-800">
-                        {message.files && message.files.length > 0 && (
+                        {message.attachments && message.attachments.length > 0 && (
                             <div className="mb-2 bg-gray-700 p-2 rounded-lg">
                                 <div className="flex flex-wrap gap-2">
-                                    {message.files.slice(0, 5).map((file, idx) => (
+                                    {message.attachments.slice(0, 5).map((file, idx) => (
                                         <div key={idx} className="flex-shrink-0 w-20 h-40 hover:scale-105 transition-transform">
                                             {file.type === 'image' ? (
                                                 <Image
@@ -57,7 +92,7 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
                             </div>
                         )}
                         <p className="text-s leading-relaxed font-medium px-5 py-4 group-hover:pb-2 transition-all duration-600 ease-in-out">
-                            {message.content}
+                            {message.content && message.content[0] && "type" in message.content[0] && message.content[0].type === "text" && message.content[0].text}
                         </p>
                         <section className="opacity-0 max-h-0 overflow-hidden text-gray-400 group-hover:opacity-100 group-hover:max-h-20 border-t border-gray-600 px-5 transition-all duration-600 ease-in-out">
                             <div className="flex justify-between items-center py-2">
@@ -76,21 +111,60 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
                         <EarthIcon className="w-6 h-6 text-green-400 mb-2" />
                         <span className="ml-1">Gemini 2.5 pro</span>
                     </span>
-                    {message.tools && message.tools.length > 0 && (
+                    {tools_used && tools_used.length > 0 && (
                         <div className="m-4 flex flex-col space-y-2">
-                            {message.tools.map((tool, idx) => (
+                            {tools_used.map((tool, idx) => (
                                 (tool.name === "web_search" ? (
-                                    <span key={idx} className="text-gray-400 cursor-pointer"><Globe className="inline-block mr-1 p-1" /><span className="font-bold">{tool.name}</span> - {tool.status === "in_progress" ? "In Progress" : `Completed (${JSON.parse(tool.output || '{}').results?.length || 0} results found)`}</span>
+                                    <span key={idx} className={`text-gray-400 cursor-pointer ${tool.status === "failed" ? "text-red-400" : ""}`}><Globe className="inline-block mr-1 p-1" /><span className="font-bold">{tool.name.replace("_", " ")}</span> - {tool.status === "in_progress" ? "In Progress" : (tool.status === "completed" ? `Completed (${getSearchResultsCount(tool.output)} results found)` : "Failed")}</span>
                                 ) : (
-                                    <span key={idx} className="text-gray-400 cursor-pointer">{svg_tool[tool.name] || svg_tool.default}<span className="font-bold">{tool.name}</span> - {tool.status === "in_progress" ? "In Progress" : "Completed"}</span>
+                                    <span key={idx} className={`text-gray-400 cursor-pointer ${tool.status === "failed" ? "text-red-400" : ""}`}>{svg_tool[tool.name] || svg_tool.default}<span className="font-bold">{tool.name.replace("_", " ")}</span> - {tool.status === "in_progress" ? "In Progress" : (tool.status === "completed" ? "Completed" : "Failed")}</span>
                                 ))
                             ))}
                         </div>
                     )}
                     <div className="group relative max-w-4xl px-5 py-4 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl backdrop-blur-md border-x border-gray-700">
-                        <div className="text-s leading-relaxed">
-                            <MessageFormat message={message.content === "" ? "No content" : message.content} />
-                        </div>
+                        {message.content.map((part, idx) => {
+                            if (part && "type" in part && part.type === "text") {
+                                const rawText = part.text ?? "";
+                                const hasVisibleText = rawText.trim().length > 0;
+
+                                if (!hasVisibleText) {
+                                    if (message.status === "completed") {
+                                        return (
+                                            <div key={idx} className="text-s leading-relaxed">
+                                                <MessageFormat message="No content" />
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                }
+
+                                return (
+                                    <div key={idx} className="text-s leading-relaxed">
+                                        <MessageFormat message={rawText} />
+                                    </div>
+                                );
+                            }
+
+                            if (part && "status" in part) {
+                                return (
+                                    <div key={idx} className="text-s leading-relaxed mt-2 mb-4 flex items-center space-x-2">
+                                        {part.name === "web_search" ? (
+                                            <Badge className="hover:bg-gray-600/40"><span className="font-bold mx-2 hover:underline hover:text-blue-400 hover:cursor-pointer">Recherche Web effectuée</span> <ExternalLink className="text-gray-400" /></Badge>
+                                        ) : (
+                                            <Badge className="hover:bg-gray-600/40"><span className="font-bold mx-2 hover:underline hover:text-blue-400 hover:cursor-pointer">Tool: {part.name.replace("_", " ")}</span> <ExternalLink className="text-gray-400" /></Badge>
+                                        )}
+                                    </div>
+                                );
+                            }
+
+                            return null;
+                        })}
+                        {shouldShowNoContentFallback && (
+                            <div className="text-s leading-relaxed">
+                                <MessageFormat message="No content" />
+                            </div>
+                        )}
                     </div>
                     <section className="opacity-0 overflow-hidden text-gray-400 group-hover:opacity-100 px-5 transition-all duration-600 ease-in-out">
                         <div className="flex justify-between items-center py-2">
@@ -98,8 +172,8 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
                                 <>
                                     <div className="flex space-x-2">
                                         <div className="flex space-x-2">
-                                            <LucideCopy className="cursor-pointer border-gray-600 rounded hover:border-1 hover:bg-gray-600/40 p-1" />
                                             <GitBranchPlus className="cursor-pointer border-gray-600 rounded hover:border-1 hover:bg-gray-600/40 p-1" />
+                                            <LucideCopy className="cursor-pointer border-gray-600 rounded hover:border-1 hover:bg-gray-600/40 p-1" />
                                             <RefreshCcwDot className="cursor-pointer border-gray-600 rounded hover:border-1 hover:bg-gray-600/40 p-1" />
                                         </div>
                                         {isLast && (

@@ -1,8 +1,9 @@
 "use client";
-import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import z from 'zod';
-import { file_schema, message_schema } from '@/lib/types/client.schema';
+import { file_schema, message_schema, tool_schema } from '@/lib/types/client.schema';
+import { create } from 'zustand';
 
 
 interface HistoryContextType {
@@ -25,16 +26,17 @@ type StartType = {
     files: FileList | null;
 }
 
-// const getMappedFileType = (mimeType: string): "image" | "text" | "pdf" | "word" | "excel" | "powerpoint" | "code" | "other" => {
-//     if (mimeType.startsWith('image/')) return 'image';
-//     if (mimeType.startsWith('text/')) return 'text';
-//     if (mimeType === 'application/pdf') return 'pdf';
-//     if (mimeType === 'application/msword' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'word';
-//     if (mimeType === 'application/vnd.ms-excel' || mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'excel';
-//     if (mimeType === 'application/vnd.ms-powerpoint' || mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'powerpoint';
-//     if (mimeType.includes('code') || mimeType.includes('javascript') || mimeType.includes('json')) return 'code';
-//     return 'other';
-// };
+const getMappedFileType = (mimeType?: string): "image" | "text" | "pdf" | "word" | "excel" | "powerpoint" | "code" | "other" => {
+    if (!mimeType) return 'other';
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('text/')) return 'text';
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType === 'application/msword' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'word';
+    if (mimeType === 'application/vnd.ms-excel' || mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'excel';
+    if (mimeType === 'application/vnd.ms-powerpoint' || mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'powerpoint';
+    if (mimeType.includes('code') || mimeType.includes('javascript') || mimeType.includes('json')) return 'code';
+    return 'other';
+};
 
 const convert_file_format = async (files: FileList | null): Promise<z.infer<typeof file_schema>[]> => {
     if (!files) return [];
@@ -45,7 +47,7 @@ const convert_file_format = async (files: FileList | null): Promise<z.infer<type
             size: files[i].size,
             mimeType: files[i].type,
             lastModified: files[i].lastModified,
-            type: "image",
+            type: getMappedFileType(files[i].type),
             data: files[i],
         });
     }
@@ -54,6 +56,39 @@ const convert_file_format = async (files: FileList | null): Promise<z.infer<type
 
 
 const HistoryContext = createContext<HistoryContextType | undefined>(undefined);
+
+type HistoryStore = {
+    start?: StartType;
+    error: boolean;
+    history: z.infer<typeof message_schema>[];
+    isAuthorized: boolean;
+    isLoading: boolean;
+    isWorking: boolean;
+    setStart: (value?: StartType) => void;
+    setError: (value: boolean) => void;
+    setHistory: (value: z.infer<typeof message_schema>[]) => void;
+    updateHistory: (updater: (value: z.infer<typeof message_schema>[]) => z.infer<typeof message_schema>[]) => void;
+    setIsAuthorized: (value: boolean) => void;
+    setIsLoading: (value: boolean) => void;
+    setIsWorking: (value: boolean) => void;
+};
+
+const useHistoryStore = create<HistoryStore>((set) => ({
+    start: undefined,
+    error: false,
+    history: [],
+    isAuthorized: true,
+    isLoading: false,
+    isWorking: false,
+    setStart: (value) => set({ start: value }),
+    setError: (value) => set({ error: value }),
+    setHistory: (value) => set({ history: value }),
+    updateHistory: (updater) => set((state) => ({ history: updater(state.history) })),
+    setIsAuthorized: (value) => set({ isAuthorized: value }),
+    setIsLoading: (value) => set({ isLoading: value }),
+    setIsWorking: (value) => set({ isWorking: value }),
+}));
+
 export const useHistory = (): HistoryContextType => {
     const context = useContext(HistoryContext);
     if (context === undefined) {
@@ -66,12 +101,21 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
     const { conv_id } = useParams();
     const conversationId = Array.isArray(conv_id) ? (conv_id[0] ?? "") : (conv_id ?? "");
 
-    const [start, setStart] = useState<StartType | undefined>(undefined);
-    const [error, setError] = useState<boolean>(false);
-    const [history, setHistory] = useState<z.infer<typeof message_schema>[]>([]);
-    const [isAuthorized, setIsAuthorized] = useState<boolean>(true);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [isWorking, setIsWorking] = useState<boolean>(false);
+    const {
+        start,
+        error,
+        history,
+        isAuthorized,
+        isLoading,
+        isWorking,
+        setStart,
+        setError,
+        setHistory,
+        updateHistory,
+        setIsAuthorized,
+        setIsLoading,
+        setIsWorking,
+    } = useHistoryStore();
 
     const conversationIdRef = useRef("");
     const messageIdRef = useRef("0");
@@ -163,15 +207,16 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
     const startNewConversation = async (prompt: string, files: FileList | null) => {
         setStart({ content: prompt, files });
     }
-
     const retrySendMessage = useCallback(async () => {
         if (error) {
             const lastMessage = history[history.length - 2];
             if (lastMessage) {
-                setHistory((prev) => prev.slice(0, -2));
+                updateHistory((prev) => prev.slice(0, -2));
                 messagesRef.current = messagesRef.current.slice(0, -2);
                 messageIdRef.current = String(Number(messageIdRef.current) - 2);
-                await sendMessage(lastMessage.content, undefined, lastMessage.files);
+                if (lastMessage.content[0] && "text" in lastMessage.content[0]) {
+                    await sendMessage(lastMessage.content[0].text, undefined, lastMessage.attachments);
+                }
             }
         }
     }, [error]);
@@ -181,12 +226,17 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
         if (!trimmedMessage) return;
 
         const filesArray = files ? await convert_file_format(files) : (preparedFiles || []);
-        messageIdRef.current += 1;
+        messageIdRef.current = String(Number(messageIdRef.current || "0") + 1);
         const userMessage: z.infer<typeof message_schema> = {
             id: messageIdRef.current,
             role: "user",
-            content: trimmedMessage,
-            files: filesArray,
+            content: [
+                {
+                    type: "text",
+                    text: trimmedMessage
+                }
+            ],
+            attachments: filesArray,
             timestamp: new Date().toISOString(),
         };
 
@@ -196,22 +246,151 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
         setHistory(nextMessages);
 
         // Créer le message assistant vide pour le streaming
-        messageIdRef.current += 1;
+        messageIdRef.current = String(Number(messageIdRef.current || "0") + 1);
+        const assistantMessageId = messageIdRef.current;
+        let assistantContent: z.infer<typeof message_schema>["content"] = [];
         const assistantMessage: z.infer<typeof message_schema> = {
-            id: messageIdRef.current,
+            id: assistantMessageId,
             role: "assistant",
-            content: "",
+            content: assistantContent,
             status: "pending",
             timestamp: new Date().toISOString(),
         };
 
         // Ajouter le message vide à l'état
         setIsWorking(true);
-        setHistory((previous) => {
+        updateHistory((previous) => {
             const next = [...previous, assistantMessage];
             messagesRef.current = next;
             return next;
         });
+
+        let currentTextBlockIndex: number | null = null;
+
+        const syncAssistantMessage = (nextContent: z.infer<typeof message_schema>["content"], nextStatus?: "pending" | "completed" | "failed") => {
+            assistantContent = nextContent;
+            if (!isMountedRef.current) {
+                return;
+            }
+
+            updateHistory((previous) => {
+                const updated = [...previous];
+                const targetIndex = updated.findIndex((msg) => msg.id === assistantMessageId);
+                if (targetIndex === -1) {
+                    return previous;
+                }
+
+                const targetMessage = updated[targetIndex];
+                const patchedMessage = {
+                    ...targetMessage,
+                    content: nextContent,
+                    status: nextStatus ?? targetMessage.status,
+                };
+
+                updated[targetIndex] = patchedMessage;
+                messagesRef.current = updated;
+                return updated;
+            });
+        };
+
+        const appendTextBlock = (initialText: string) => {
+            if (!initialText || initialText.length === 0) {
+                return;
+            }
+            const nextEntry: z.infer<typeof message_schema>["content"][number] = {
+                type: "text",
+                text: initialText,
+            };
+
+            const nextContent = [...assistantContent, nextEntry];
+            currentTextBlockIndex = nextContent.length - 1;
+            syncAssistantMessage(nextContent);
+        };
+
+        const appendToCurrentTextBlock = (delta: string) => {
+            if (!delta || delta.length === 0) {
+                return;
+            }
+            if (currentTextBlockIndex === null) {
+                appendTextBlock(delta);
+                return;
+            }
+
+            const currentEntry = assistantContent[currentTextBlockIndex];
+
+            if (!currentEntry || !('type' in currentEntry) || currentEntry.type !== "text") {
+                appendTextBlock(delta);
+                return;
+            }
+
+            const updatedEntry = {
+                ...currentEntry,
+                text: (currentEntry.text ?? "") + delta,
+            };
+
+            const nextContent = assistantContent.map((item, index) => index === currentTextBlockIndex ? updatedEntry : item);
+            syncAssistantMessage(nextContent);
+        };
+
+        const normalizeToolField = (value: unknown) => {
+            if (value === undefined || value === null) {
+                return "";
+            }
+
+            if (typeof value === "string") {
+                return value;
+            }
+
+            try {
+                return JSON.stringify(value);
+            } catch (serializationError) {
+                console.warn("Failed to serialize tool field", serializationError);
+                return "";
+            }
+        };
+
+        const upsertTool = (toolId: string, toolName: string, toolInput: unknown, toolOutput: unknown, statusHint?: "in_progress" | "completed" | "failed") => {
+            if (!toolId) {
+                return;
+            }
+
+            const normalizedInput = normalizeToolField(toolInput);
+            const normalizedOutput = normalizeToolField(toolOutput);
+            const now = new Date().toISOString();
+
+            const existingIndex = assistantContent.findIndex((item) => item && typeof item === "object" && "call_id" in item && (item as z.infer<typeof tool_schema>).call_id === toolId);
+
+            if (existingIndex === -1) {
+                const existingTools = assistantContent.filter((item): item is z.infer<typeof tool_schema> => !!item && typeof item === "object" && "call_id" in item);
+                const nextTool: z.infer<typeof tool_schema> = {
+                    index: existingTools.length,
+                    call_id: toolId,
+                    name: toolName,
+                    input: normalizedInput,
+                    output: normalizedOutput,
+                    status: statusHint ?? (normalizedOutput ? "completed" : "in_progress"),
+                    start_timestamp: now,
+                    timestamp: now,
+                };
+
+                const nextContent = [...assistantContent, nextTool];
+                currentTextBlockIndex = null;
+                syncAssistantMessage(nextContent);
+                return;
+            }
+
+            const currentTool = assistantContent[existingIndex] as z.infer<typeof tool_schema>;
+            const nextTool = {
+                ...currentTool,
+                input: normalizedInput || currentTool.input,
+                output: normalizedOutput || currentTool.output,
+                status: statusHint ?? (normalizedOutput ? "completed" : currentTool.status),
+                timestamp: now,
+            };
+
+            const nextContent = assistantContent.map((item, index) => index === existingIndex ? nextTool : item);
+            syncAssistantMessage(nextContent);
+        };
 
         try {
             const response = await fetch("/api-client/chat", {
@@ -273,8 +452,8 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
                 throw new Error("No reader available");
             }
 
-            let accumulatedContent = "";
             let shouldStop = false;
+            let pendingBuffer = "";
 
             while (!shouldStop) {
                 const { done, value } = await reader.read();
@@ -284,7 +463,9 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
                 }
 
                 const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
+                pendingBuffer += chunk;
+                const lines = pendingBuffer.split('\n');
+                pendingBuffer = lines.pop() ?? "";
 
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
@@ -298,66 +479,37 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
                         try {
                             const parsed = JSON.parse(data);
 
-                            const content = parsed.chunk?.text || '';
-                            const tool_input = parsed.tool?.input || '';
-                            const tool_output = parsed.tool?.output || '';
-                            const tool_name = parsed.tool?.name || '';
-                            const tool_id = parsed.call_id || '';
+                            const operation = parsed.o as string | undefined;
+                            const chunkParts = parsed.chunk?.parts as Array<{ type?: string; text?: string }> | undefined;
+                            const chunkText = parsed.chunk?.text as string | undefined;
+                            const toolName = parsed.tool?.name as string | undefined;
+                            const toolInput = parsed.tool?.input;
+                            const toolOutputPayload = parsed.tool?.output ?? parsed.error;
+                            const toolId = parsed.call_id as string | undefined;
+                            const hasError = parsed.error !== undefined && parsed.error !== null;
 
-                            if (content) {
-                                accumulatedContent += content;
+                            if (Array.isArray(chunkParts) && chunkParts.length > 0) {
+                                for (const part of chunkParts) {
+                                    if (part?.type === "text") {
+                                        appendTextBlock(part.text ?? "");
+                                    }
+                                }
+                                continue;
+                            }
 
-                                // Mettre à jour le message en temps réel
-                                if (isMountedRef.current) {
-                                    setHistory((previous) => {
-                                        const updated = [...previous];
-                                        const lastIndex = updated.length - 1;
-                                        if (lastIndex >= 0 && updated[lastIndex].id === assistantMessage.id) {
-                                            updated[lastIndex] = {
-                                                ...updated[lastIndex],
-                                                content: accumulatedContent,
-                                            };
-                                        }
-                                        messagesRef.current = updated;
-                                        return updated;
-                                    });
+                            if (typeof chunkText === "string" && chunkText.length > 0) {
+                                appendToCurrentTextBlock(chunkText);
+                                continue;
+                            }
+
+                            if (toolName && toolId) {
+                                let status: "in_progress" | "completed" | "failed" | undefined;
+                                if (operation === "update") {
+                                    status = hasError ? "failed" : toolOutputPayload !== undefined ? "completed" : undefined;
                                 }
-                            } else if (tool_name && tool_id) {
-                                // Handle tool usage updates
-                                if (isMountedRef.current) {
-                                    setHistory((previous) => {
-                                        const updated = [...previous];
-                                        const lastIndex = updated.length - 1;
-                                        if (lastIndex >= 0 && updated[lastIndex].id === assistantMessage.id) {
-                                            const existingTools = updated[lastIndex].tools || [];
-                                            const toolIndex = existingTools.findIndex(t => t.id === tool_id);
-                                            if (toolIndex !== -1) {
-                                                // Update existing tool entry
-                                                existingTools[toolIndex] = {
-                                                    ...existingTools[toolIndex],
-                                                    input: tool_input || existingTools[toolIndex].input,
-                                                    output: tool_output || existingTools[toolIndex].output,
-                                                    status: tool_output ? 'completed' : 'in_progress',
-                                                };
-                                            } else {
-                                                // Add new tool entry
-                                                existingTools.push({
-                                                    id: tool_id,
-                                                    name: tool_name,
-                                                    input: tool_input,
-                                                    output: tool_output,
-                                                    status: tool_output ? 'completed' : 'in_progress',
-                                                });
-                                            }
-                                            updated[lastIndex] = {
-                                                ...updated[lastIndex],
-                                                tools: existingTools,
-                                            };
-                                        }
-                                        messagesRef.current = updated;
-                                        return updated;
-                                    });
-                                }
+
+                                upsertTool(toolId, toolName, toolInput, toolOutputPayload, status);
+                                continue;
                             }
                         } catch (parseError) {
                             console.warn('Failed to parse SSE data:', parseError);
@@ -369,40 +521,17 @@ export const HistoryProvider = ({ children }: { children: ReactNode }) => {
                     break;
                 }
             }
-            if (isMountedRef.current) {
-                setHistory((previous) => {
-                    const updated = [...previous];
-                    const lastIndex = updated.length - 1;
-                    if (lastIndex >= 0 && updated[lastIndex].id === assistantMessage.id) {
-                        updated[lastIndex] = {
-                            ...updated[lastIndex],
-                            status: "completed",
-                        };
-                    }
-                    messagesRef.current = updated;
-                    return updated;
-                });
-            }
+            syncAssistantMessage(assistantContent, "completed");
 
 
         } catch (error) {
             console.error("Error generating response:", error);
 
-            if (isMountedRef.current) {
-                setHistory((previous) => {
-                    const updated = [...previous];
-                    const lastIndex = updated.length - 1;
-                    if (lastIndex >= 0 && updated[lastIndex].id === assistantMessage.id) {
-                        updated[lastIndex] = {
-                            ...updated[lastIndex],
-                            status: "failed",
-                            content: "Sorry, an error occurred. Please try again.",
-                        };
-                    }
-                    messagesRef.current = updated;
-                    return updated;
-                });
-            }
+            assistantContent = [{
+                type: "text",
+                text: "Sorry, an error occurred. Please try again.",
+            }];
+            syncAssistantMessage(assistantContent, "failed");
         } finally {
             setIsWorking(false);
         }

@@ -1,5 +1,5 @@
-import { getConversation, saveMessage, updateMessage } from "@/lib/db";
-import { tool_schema } from "@/lib/types/db.schema";
+import { getConversation, addMessage, updateAssistantMessage } from "@/lib/db";
+import { message_assistant_content_schema } from "@/lib/types/db.schema";
 import z from "zod";
 
 const fileSchema = z.object({
@@ -25,6 +25,7 @@ type MessageContent = {
 
 type ApiRequestBody = {
     prompt: string;
+    generate_title?: boolean;
     history: MessageContent[];
     files: z.infer<typeof fileSchema>[];
 }
@@ -76,8 +77,20 @@ export async function POST(req: Request) {
         }
     }
 
+    // Concat all history messages into the format required by the backend
+    const parsedConversation = []
+    for (const msg of history) {
+        let messageContent = "";
+        for (const contentPart of msg.content) {
+            if (contentPart && 'type' in contentPart && contentPart.type === "text") {
+                messageContent = contentPart.text;
+            }
+        }
+        parsedConversation.push({ content: messageContent, role: msg.role });
+    }
+
     try {
-        const response: Response = await fetch(`${process.env.BACKEND_BASE_URL}/generation/`, {
+        const response: Response = await fetch(`${process.env.BACKEND_BASE_URL}/api/v1/generation/`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -88,7 +101,8 @@ export async function POST(req: Request) {
             },
             body: JSON.stringify({
                 prompt,
-                history: history.map((msg): MessageContent => ({ content: msg.content, role: msg.role })),
+                generate_title: false,
+                history: parsedConversation, //history.map((msg): MessageContent => ({ content: msg.content, role: msg.role })),
                 files: request.data.files || []
             } as ApiRequestBody),
         });
@@ -98,18 +112,19 @@ export async function POST(req: Request) {
             throw new Error("Failed to fetch");
         }
 
-        const user_message_id = await saveMessage(conversation_id, {
+        const user_message_id = await addMessage(conversation_id, {
             id: "0",
-            version: 1,
             role: "user",
-            content: prompt,
+            content: [{
+                type: "text",
+                text: prompt
+            }],
             timestamp: new Date().toISOString()
         });
-        const assistant_message_id = await saveMessage(conversation_id, {
+        const assistant_message_id = await addMessage(conversation_id, {
             id: "0",
-            version: 1,
             role: "assistant",
-            content: "",
+            content: [],
             status: "pending",
             timestamp: new Date().toISOString()
         });
@@ -123,8 +138,11 @@ export async function POST(req: Request) {
                     return;
                 }
 
-                let completeResponse = "";
-                const tools_used: z.infer<typeof tool_schema>[] = [];
+
+                // let completeResponse = "";
+                const all_message_parts: z.infer<typeof message_assistant_content_schema>[] = [];
+                const lines_notprocessed: string[] = [];
+                // const tools_used: z.infer<typeof tool_schema>[] = [];
                 let stage = 0; // Index to track the current stage of the response
                 let tool_calls_stage = []; // Array to track tool calls per stage
 
@@ -147,74 +165,142 @@ export async function POST(req: Request) {
                         }
 
                         const text = new TextDecoder().decode(value);
-                        const lines = text.split('\n').filter(line => line.trim().startsWith('data:'));
+                        const lines = text.split('\n').filter(line => line.trim().length > 0);
+                        // console.log("Raw received lines:", lines);
 
-                        for (const line of lines) {
+                        const processedLines = [];
+                        for ( const line of lines) {
+                            if (line.trim().startsWith("data:")) {
+                                processedLines.push(line);
+                                continue;
+                            }
+
+                            if (line.trim().startsWith("event:")) continue;
+                            if (processedLines.length > 0) {
+                                processedLines[processedLines.length - 1] += line.trimEnd();
+                            } else {
+                                if (lines_notprocessed.length > 0) {
+                                    lines_notprocessed[lines_notprocessed.length - 1] += line.trimEnd();
+                                    const poppedLine = lines_notprocessed.shift();
+                                    if (poppedLine) { // try to re-process (e.g. was split across chunks)
+                                        processedLines.unshift(poppedLine);
+                                    }
+                                }
+                            }
+                        }
+
+                        // console.log("Raw Processed lines:", processedLines);
+                        if (processedLines.length === 0) console.warn("No complete lines to process yet."); // Should never happen...
+
+                        for (const line of processedLines) {
+                            // console.log("Processing line:", line);
                             try {
                                 const jsonStr = line.substring(5).trim();
                                 if (jsonStr === "[DONE]") break;
 
                                 const jsonData = JSON.parse(jsonStr);
                                 const chunkType = jsonData.type as string | undefined;
-                                if (chunkType == "content_moderation") {
-                                    // NOTICE: Just appear once at the beginning of the stream
-                                    controller.enqueue(new TextEncoder().encode(`event: session\ndata: ${JSON.stringify({ type: "session", conversation_id, message_id: assistant_message_id, parent_id: user_message_id, moderate: jsonData.moderate === null ? "safe" : jsonData.moderate })}\n\n`));
-                                    continue;
-                                }
+                                switch (chunkType) {
+                                    case "content_moderation":
+                                        controller.enqueue(new TextEncoder().encode(`event: session\ndata: ${JSON.stringify({ type: "session", conversation_id, message_id: assistant_message_id, parent_id: user_message_id, moderate: jsonData.moderate === null ? "safe" : jsonData.moderate })}\n\n`));
+                                        break;
 
-                                if (chunkType == "chat_model_start") {
-                                    stage++;
-                                    tool_calls_stage = [];
+                                    case "chat_model_start":
+                                        stage++;
+                                        tool_calls_stage = [];
+                                        all_message_parts.push({ path: `/message/content/parts/${stage}`, type: "text", text: "" });
 
-                                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, m: jsonData.graph_node._provider + "/" + jsonData.graph_node._name, version: 0, o: "add", p: `/message/content/parts/${stage}`, chunk: { parts: [{ type: "text", text: "" }] } })}\n\n`));
-                                    continue;
+                                        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, m: jsonData.graph_node._provider + "/" + jsonData.graph_node._name, version: 0, o: "add", p: `/message/content/parts/${stage}`, chunk: { parts: [{ type: "text", text: "" }] } })}\n\n`));
+                                        break;
 
-                                } else if (chunkType == "chat_model_stream") {
-                                    completeResponse += jsonData.parts[0].text; // save response to History
-
-                                    controller.enqueue(new TextEncoder().encode(`event: delta\ndata: ${JSON.stringify({ o: "append", chunk: { text: jsonData.parts[0].text, sources: undefined } })}\n\n`));
-                                    // Start Tool Call Events
-                                    if (jsonData.tool_calls && Array.isArray(jsonData.tool_calls)) {
-                                        for (const tool_call of jsonData.tool_calls) {
-                                            tool_calls_stage.push({ id: tool_call.id, stage: tool_calls_stage.length });
-                                            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, version: 0, call_id: tool_call.id, "o": "add", "p": `/message/content/tools/${stage}/${tool_calls_stage.length - 1}`, error: null, tool: { name: tool_call.name, input: JSON.stringify(tool_call.args) } })}\n\n`));
+                                    case "chat_model_stream":
+                                        // completeResponse += jsonData.parts[0].text; // save response to History
+                                        if (all_message_parts.length === 0) { // Normally should NEVER happen!
+                                            all_message_parts.push({ path: `/message/content/parts/${stage}`, type: "text", text: "" });
                                         }
-                                    }
-                                    continue;
+                                        const lastPart = all_message_parts[all_message_parts.length - 1];
+                                        if (lastPart && 'type' in lastPart && lastPart.type === "text") {
+                                            lastPart.text += jsonData.parts[0].text;
+                                        }
 
-                                } else if (chunkType == "tool_end") {
-                                    const toolIndexTable = tool_calls_stage.findIndex(call => call.id === jsonData.tool_id);
-                                    let tool_stage = -1;
-                                    if (toolIndexTable > -1) {
-                                        tool_stage = tool_calls_stage[toolIndexTable].stage;
-                                    }
-                                    tools_used.push({
-                                        index: tools_used.length + 1,
-                                        id: jsonData.tool_id,
-                                        name: jsonData.tool_name,
-                                        input: jsonData.data.input ? (typeof jsonData.data.input === "string" ? jsonData.data.input : JSON.stringify(jsonData.data.input)) : "",
-                                        output: jsonData.data.output ? (typeof jsonData.data.output === "string" ? jsonData.data.output : JSON.stringify(jsonData.data.output)) : "",
-                                        status: "completed",
-                                        start_timestamp: new Date().toISOString(),
-                                        timestamp: new Date().toISOString()
-                                    })
+                                        controller.enqueue(new TextEncoder().encode(`event: delta\ndata: ${JSON.stringify({ o: "append", chunk: { text: jsonData.parts[0].text, sources: undefined } })}\n\n`));
+                                        // Start Tool Call Events
+                                        if (jsonData.tool_calls && Array.isArray(jsonData.tool_calls)) {
+                                            for (const tool_call of jsonData.tool_calls) {
+                                                tool_calls_stage.push({ id: tool_call.id, stage: tool_calls_stage.length });
+                                                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, version: 0, call_id: tool_call.id, "o": "add", "p": `/message/content/tools/${stage}/${tool_calls_stage.length - 1}`, error: null, tool: { name: tool_call.name, input: JSON.stringify(tool_call.args) } })}\n\n`));
+                                            }
+                                        }
+                                        break;
 
-                                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, version: 0, call_id: jsonData.tool_id, "o": "update", "p": `/message/content/tools/${stage}/${tool_stage}`, error: null, tool: { name: jsonData.tool_name, output: jsonData.data.output, metadata: null } })}\n\n`));
-                                    continue;
+                                    case "tool_end":
+                                        const toolIndexTable = tool_calls_stage.findIndex(call => call.id === jsonData.tool_id);
+                                        let tool_stage = -1;
+                                        if (toolIndexTable > -1) {
+                                            tool_stage = tool_calls_stage[toolIndexTable].stage;
+                                        }
 
-                                } else if (chunkType == "chat_model_end") {
-                                    continue;
+                                        let tool_input = "";
+                                        let tool_output = "";
+                                        let error = false;
+                                        const tool_call_path = `/message/content/tools/${stage}/${tool_stage}`;
 
-                                } else if (jsonData.type === "error") {
-                                    const errorData = JSON.stringify({ error: jsonData.error || "Unknown error", err_type: jsonData.error_type || "unknown" });
-                                    controller.enqueue(new TextEncoder().encode(`event: error\ndata: ${errorData}\n\ndata: [DONE]\n\n`));
-                                    controller.close();
-                                    return;
+                                        try {
+                                            tool_input = jsonData.data.input ? (typeof jsonData.data.input === "string" ? jsonData.data.input : JSON.stringify(jsonData.data.input)) : "";
+                                            tool_output = jsonData.data.output ? (typeof jsonData.data.output === "string" ? jsonData.data.output : JSON.stringify(jsonData.data.output)) : "";
+                                            if (tool_output === "{'error': Exception('Error 400: Bad Request')}") { // Specific case for web search tool error
+                                                throw new Error("Tool returned an error");
+                                            }
 
+                                        } catch (e) {
+                                            console.error("Error processing tool input/output:", e);
+                                            error = true;
+
+                                        } finally {
+                                            // tools_used.push({
+                                            //     index: tools_used.length + 1,
+                                            //     path: tool_call_path,
+                                            //     call_id: jsonData.tool_id,
+                                            //     name: jsonData.tool_name,
+                                            //     input: tool_input ? tool_input : "",
+                                            //     output: tool_output ? tool_output : "",
+                                            //     status: error ? "failed" : "completed",
+                                            //     start_timestamp: new Date().toISOString(),
+                                            //     timestamp: new Date().toISOString()
+                                            // });
+                                            
+                                            all_message_parts.push({
+                                                index: all_message_parts.length + 1,
+                                                path: tool_call_path,
+                                                call_id: jsonData.tool_id,
+                                                name: jsonData.tool_name,
+                                                input: tool_input ? tool_input : "",
+                                                output: tool_output ? tool_output : "",
+                                                status: error ? "failed" : "completed",
+                                                start_timestamp: new Date().toISOString(),
+                                                timestamp: new Date().toISOString()
+                                            });
+                                        }
+
+                                        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ run_id: jsonData.run_id, version: 0, call_id: jsonData.tool_id, "o": "update", "p": tool_call_path, error: error ? "<error_message>" : null, tool: { name: jsonData.tool_name, output: jsonData.data.output, status: error ? "failed" : "completed", metadata: null } })}\n\n`));
+                                        break;
+
+                                    case "chat_model_end":
+                                        break;
+
+                                    case "error":
+                                        const errorData = JSON.stringify({ error: jsonData.error || "Unknown error", err_type: jsonData.error_type || "unknown" });
+                                        controller.enqueue(new TextEncoder().encode(`event: error\ndata: ${errorData}\n\ndata: [DONE]\n\n`));
+                                        controller.close();
+                                        return;
+
+                                    default:
+                                        console.warn("Unknown chunk type:", chunkType, jsonData);
                                 }
 
                             } catch (e) {
                                 console.error("Error parsing JSON:", e);
+                                lines_notprocessed.push(line);
                             }
                         }
                     }
@@ -222,10 +308,15 @@ export async function POST(req: Request) {
                     console.error("Stream error:", error);
                     controller.error(error);
                 } finally {
-                    await updateMessage(conversation_id, assistant_message_id, completeResponse, tools_used, undefined, "completed", new Date().toISOString());
+                    await updateAssistantMessage(conversation_id, assistant_message_id, all_message_parts, "completed", new Date().toISOString());
+                    // await updateMessage(conversation_id, assistant_message_id, completeResponse, tools_used, undefined, "completed", new Date().toISOString());
                     controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
 
-                    completeResponse = "";
+                    if (lines_notprocessed.length > 0) {
+                        console.warn("Unprocessed lines remaining:", lines_notprocessed);
+                    }
+
+                    // completeResponse = "";
                     reader.releaseLock();
                     controller.close();
                 }

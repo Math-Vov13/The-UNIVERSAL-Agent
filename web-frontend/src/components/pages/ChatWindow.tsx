@@ -24,9 +24,21 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
 
     return (
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-            {messages.map((message, index) => ( message.content.trim() !== "" && (
-                <ChatMessage key={index} index={message.id} message={message} isLast={index === messages.length - 1} /> )
-            ))}
+            {messages.map((message, index) => {
+                const shouldRender = message.content.length !== 0 || message.status === "completed";
+                if (!shouldRender) {
+                    return null;
+                }
+
+                return (
+                    <ChatMessage
+                        key={index}
+                        index={message.id}
+                        message={message}
+                        isLast={index === messages.length - 1}
+                    />
+                );
+            })}
 
             {isLoading && (
                 <div className="flex items-start space-x-4">
