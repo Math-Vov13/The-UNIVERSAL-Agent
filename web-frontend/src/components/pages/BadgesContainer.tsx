@@ -21,9 +21,9 @@ export default function BadgeContainer() {
 
     return (
         <div className="flex items-center justify-center gap-4 mt-2">
-            <Badge className="bg-purple-700/40 backdrop-blur-md"><MapPinHouse /> Paris / France</Badge>
-            <Badge className="bg-gray-700"><Clock /> {mounted && time ? time.toLocaleTimeString() : '--:--:--'}</Badge>
-            <Badge className="text-purple-400 hover:underline bg-purple-700/40 backdrop-blur-md">
+            <Badge className="dark:text-gray-300 dark:bg-purple-700/40 backdrop-blur-md"><MapPinHouse /> Paris / France</Badge>
+            <Badge className="dark:text-gray-300 dark:bg-gray-700"><Clock /> {mounted && time ? time.toLocaleTimeString() : '--:--:--'}</Badge>
+            <Badge className="dark:text-purple-400 hover:underline dark:bg-purple-700/40 backdrop-blur-md">
                 <Link href="/pricing#pro" className="cursor-pointer">Pro Tier</Link>
             </Badge>
         </div>
