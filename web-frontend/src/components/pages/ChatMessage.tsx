@@ -101,9 +101,11 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
                                 </div> */}
                             </>
                         )}
-                        <p className="text-s leading-relaxed font-medium px-5 py-4 group-hover:pb-2 transition-all duration-600 ease-in-out">
-                            {message.content && message.content[0] && "type" in message.content[0] && message.content[0].type === "text" && message.content[0].text}
-                        </p>
+                        <div className="text-s leading-relaxed font-medium px-5 py-4 group-hover:pb-2 transition-all duration-600 ease-in-out">
+                            {message.content && message.content[0] && "type" in message.content[0] && message.content[0].type === "text" && (
+                                <MessageFormat message={message.content[0].text} />
+                            )}
+                        </div>
                         <section className="opacity-0 max-h-0 overflow-hidden text-gray-400 group-hover:opacity-100 group-hover:max-h-20 border-t border-gray-600 px-5 transition-all duration-600 ease-in-out">
                             <div className="flex justify-between items-center py-2">
                                 <div className="flex space-x-2">
@@ -121,7 +123,7 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
                 <div className="mb-14 group relative">
                     <span className="items-center flex space-x-2 text-green-400 font-medium mb-2">
                         <EarthIcon className="w-6 h-6 text-green-400 mb-2" />
-                        <span className="ml-1">Gemini 2.5 pro</span>
+                        <span className="ml-1">Gemini 2.5 flash</span>
                     </span>
                     {tools_used && tools_used.length > 0 && (
                         <div className="m-4 flex flex-col space-y-2">
@@ -144,7 +146,7 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
                                     if (message.status === "completed") {
                                         return (
                                             <div key={idx} className="text-s leading-relaxed">
-                                                <MessageFormat message="No content" />
+                                                <p>No content</p>
                                             </div>
                                         );
                                     }
@@ -174,7 +176,7 @@ export default function ChatMessage({ message, index, isLast }: { message: z.inf
                         })}
                         {shouldShowNoContentFallback && (
                             <div className="text-s leading-relaxed">
-                                <MessageFormat message="No content" />
+                                <p>No content</p>
                             </div>
                         )}
                     </div>
