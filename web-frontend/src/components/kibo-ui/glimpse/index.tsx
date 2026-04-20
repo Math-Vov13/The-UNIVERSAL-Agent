@@ -54,14 +54,14 @@ export const GlimpseImage = ({
   className,
   alt,
   ...props
-}: GlimpseImageProps) => (
-  // biome-ignore lint/performance/noImgElement: "Kibo UI is framework agnostic"
-  <img
+}: GlimpseImageProps) => {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img
     alt={alt ?? ""}
     className={cn(
       "mb-4 aspect-[120/63] w-full rounded-md border object-cover",
       className
     )}
     {...props}
-  />
-);
+  />;
+};

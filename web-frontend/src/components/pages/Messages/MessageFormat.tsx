@@ -96,7 +96,7 @@ export default function MessageFormat({ message, }: { message: string }) {
 
         // Integrations
         a(props: { node?: unknown, href?: string, children?: React.ReactNode }) {
-            const { node, href, children, ...rest } = props;
+            const { node: _node, href, children, ...rest } = props;
             return <LinkPreview href={href || ''} {...rest}>{children}</LinkPreview>;
         },
         img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
@@ -121,7 +121,7 @@ export default function MessageFormat({ message, }: { message: string }) {
 
         // Blocks
         blockquote(props: { node?: unknown, inline?: boolean, className?: string, children?: React.ReactNode }) {
-            const { node, ...rest } = props
+            const { node: _node, ...rest } = props
             return <blockquote className="mb-4 border-l-4 border-purple-500 pl-4 italic highlight rounded-r-md hover:bg-purple-500/10" {...rest} />
         },
         code: (props: { node?: unknown, inline?: boolean, className?: string, children?: React.ReactNode, 'data-filename'?: string }) => {

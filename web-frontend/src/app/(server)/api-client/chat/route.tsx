@@ -90,7 +90,7 @@ export async function POST(req: Request) {
     }
 
     try {
-        const response: Response = await fetch(`${process.env.BACKEND_BASE_URL}/api/v1/generation/`, {
+        const response: Response = await fetch(`${process.env.BACKEND_BASE_URL}/generation/`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
