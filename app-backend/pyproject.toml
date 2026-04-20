@@ -19,8 +19,10 @@ dependencies = [
     "langchain-tavily>=0.2.11",
     "langgraph>=1.0.1",
     "langgraph-checkpoint-redis>=0.1.2",
+    "langchain-siliconflow>=0.1.0",
     "openai>=2.8.0",
     "psycopg[binary]>=3.2.11",
     "redis>=6.4.0",
     "spacy>=3.8.8",
+    "langchain-text-splitters>=1.1.2",
 ]

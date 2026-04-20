@@ -3,10 +3,10 @@ from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import JSONResponse
 from models.vc_chroma.utils import get_collection_by_name, openai_ef
 
-from langchain_community.document_loaders import TextLoader, CSVLoader, JSONLoader, Blob
-from langchain_community.document_loaders.pdf import PDFMinerLoader, PagedPDFSplitter
-from langchain_community.vectorstores import FAISS, Chroma
-from langchain.schema import Document
+# from langchain_community.document_loaders import TextLoader, CSVLoader, JSONLoader, Blob
+# from langchain_community.document_loaders.pdf import PDFMinerLoader, PagedPDFSplitter
+# from langchain_community.vectorstores import FAISS, Chroma
+# from langchain_core.messages import Document
 from models.s3.upload_files import upload_files_to_s3
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 # from rag.config import model_embeddings

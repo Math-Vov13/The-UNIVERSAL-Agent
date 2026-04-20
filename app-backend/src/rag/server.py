@@ -2,7 +2,7 @@ import asyncio
 from typing import Annotated, Any
 from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
-from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition

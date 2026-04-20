@@ -1,28 +1,33 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_siliconflow import ChatSiliconFlow
+
 # from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_mistralai import MistralAIEmbeddings
 from langchain_community.embeddings.spacy_embeddings import SpacyEmbeddings
 
 from langchain_redis import RedisCache, RedisSemanticCache
-from langchain.globals import set_llm_cache
+# from langchain.globals import set_llm_cache
 from models.cache_redis.client import client as redis_client
 
 from dotenv import load_dotenv
 from os import environ as env
-import hashlib
-import json
 load_dotenv()
 
 
 # set_llm_cache(RedisCache(redis_client=redis_client, ttl=86400, prefix="llm_cache"))
 
 ### LLM CONFIGURATION ###
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0.6,
-    max_tokens=7000,
-    timeout=None,
-    max_retries=2,
+# llm = ChatGoogleGenerativeAI(
+#     model="gemini-2.5-flash",
+#     temperature=0.6,
+#     max_tokens=7000,
+#     timeout=None,
+#     max_retries=2,
+# )
+llm = ChatSiliconFlow(
+    model="zai-org/GLM-5V-Turbo",
+    name="GLM-5V-Turbo",
+    temperature=0.3,
 )
 
 llm_pro = ChatGoogleGenerativeAI(

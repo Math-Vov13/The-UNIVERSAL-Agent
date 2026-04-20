@@ -1,8 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import BaseMessage, ToolMessage
+from langchain_core.messages import ToolMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_redis import RedisChatMessageHistory
 from pydantic import BaseModel
 from typing import Optional, Literal
@@ -19,7 +18,7 @@ from schema.generation_streaming import (
 )
 from rag.server import ensure_graph
 from models.cache_redis.client import client as redis_client
-from models.vc_chroma.client import chroma_client
+# from models.vc_chroma.client import chroma_client
 from uuid import uuid4
 import time
 
@@ -98,7 +97,7 @@ def _create_event_stream(request_id: str, generation, redis_store: RedisChatMess
                     if response_content == "" and chunk.get('data', {}).get('output'):
                         # TODO: handle tool calls in cached response
                         delta_chunk = chunk.get('data', {}).get('output').model_dump()
-                        yield f"event: delta\ndata: {ChunkMessage(run_id=chunk.get('run_id'), parts=[{"type": "text", "text": delta_chunk.get('content', '')}], tool_calls=delta_chunk.get('tool_calls', []), response_metadata=delta_chunk.get('response_metadata', {}), usage_metadata=delta_chunk.get('usage_metadata', {})).model_dump_json()}\n\n"
+                        yield f"event: delta\ndata: {ChunkMessage(run_id=chunk.get('run_id'), parts=[{"type": "text", "text": delta_chunk.get('content', '')}], tool_calls=delta_chunk.get('tool_calls', []), response_metadata=delta_chunk.get('response_metadata', {}) or {}, usage_metadata=delta_chunk.get('usage_metadata', {}) or {}).model_dump_json()}\n\n"
                     response_content = ""
                     redis_store.add_ai_message(chunk.get('data', {}).get('output'))
                     yield f"event: delta\ndata: {ChunkEnd(run_id=chunk.get('run_id', ''), response_metadata=chunk.get('data', {}).get('output', {}).response_metadata).model_dump_json()}\n\n"
@@ -119,7 +118,7 @@ def _create_event_stream(request_id: str, generation, redis_store: RedisChatMess
                     # print("Chat model stream:", chunk, flush=True)
                     delta_chunk = chunk.get("data").get("chunk").model_dump()
                     response_content += delta_chunk.get('content', '')
-                    yield f"event: delta\ndata: {ChunkMessage(run_id=chunk.get('run_id'), parts=[{"type": "text", "text": delta_chunk.get('content', '')}], tool_calls=delta_chunk.get('tool_calls', []), response_metadata=delta_chunk.get('response_metadata', {}), usage_metadata=delta_chunk.get('usage_metadata', {})).model_dump_json()}\n\n"
+                    yield f"event: delta\ndata: {ChunkMessage(run_id=chunk.get('run_id'), parts=[{"type": "text", "text": delta_chunk.get('content', '')}], tool_calls=delta_chunk.get('tool_calls', []), response_metadata=delta_chunk.get('response_metadata', {}) or {}, usage_metadata=delta_chunk.get('usage_metadata', {}) or {}).model_dump_json()}\n\n"
             yield f"data: {RequestEnd(request_id=request_id, total_time=time.time() - start_time).model_dump_json()}\n\n"
 
         except Exception as e:
