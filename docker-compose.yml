@@ -7,6 +7,8 @@ services:
       - "3000:3000"
     environment:
       - BACKEND_BASE_URL=http://nginx:8000
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:mypassword@db:5432/postgres
 
     networks:
       - custom_network
@@ -22,7 +24,9 @@ services:
     networks:
       - custom_network
     depends_on:
-      - app
+      - db
+      - vectordb
+      - cache
 
   app:
     build:
@@ -32,28 +36,66 @@ services:
       - APP_ENV=production
       - APP_DEBUG=false
       - PORT=8080
+
+      - DATABASE_URL=postgresql://postgres:mypassword@db:5432/postgres
+      - REDIS_URL=redis://cache:6379
+      - CHROMA_HOST=vectordb
+      - CHROMA_PORT=8000
     env_file:
       - ./app-backend/.env
 
     networks:
       - custom_network
+    
+    depends_on:
+      - nginx
 
   db:
     image: postgres:latest
     environment:
-      - POSTGRES_USER=myuser
+      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=mypassword
-      - POSTGRES_DB=mydatabase
+      - POSTGRES_DB=postgres
     networks:
       - custom_network
       
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5432:5432"
+      - ":5432"
+  
+  cache:
+    image: redis/redis-stack:latest
+    ports:
+      - ":6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    volumes:
+      - redis_data:/data
+    networks:
+      - custom_network
+  
+  vectordb:
+    image: chromadb/chroma:latest
+    environment:
+      - CHROMA_DB_IMPL=duckdb+parquet
+      - CHROMA_SERVER_HOST=vectordb
+    ports:
+      - ":8000"
+    volumes:
+      - vector_db_data:/var/lib/postgresql/data
+    networks:
+      - custom_network
 
 volumes:
   db_data:
+  redis_data:
+  vector_db_data:
 
 networks:
   custom_network:

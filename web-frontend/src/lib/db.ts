@@ -7,6 +7,10 @@ import {
     message_user_content_schema,
     message_assistant_content_schema
 } from "./types/db.schema"
+// import { db } from "@/db/index";
+// import { createSelectSchema } from 'drizzle-zod';
+// import { messagesTable } from "@/db/schema/history.sql";
+// const user_schema = createSelectSchema(usersTable).omit({ id: true, conversationId: true });
 
 const fakedb: z.infer<typeof db_schema> = []
 
@@ -18,6 +22,9 @@ export async function getAllConversations(): Promise<z.infer<typeof db_schema> |
 }
 
 export async function getConversation(id: string): Promise<z.infer<typeof message_schema>[] | []> {
+    // const result = await db.execute(`select * from public.get_conversation_history(${id})`);
+    // return result as z.infer<typeof message_schema>[] | [];
+
     for (const entry of fakedb) {
         const result = conversation_schema.safeParse(entry)
         if (result.success && result.data.id === id) {
@@ -73,6 +80,12 @@ export async function updateUserMessage(
 }
 
 export async function addMessage(conv_id: string, message: z.infer<typeof message_schema>): Promise<string> {
+    // const result = await db.insert(messagesTable).values({
+    //     conversationId: conv_id,
+    //     role: message.role,
+    //     content: JSON.stringify(message.content),
+    // })
+
     const message_id = crypto.randomUUID()
     message.id = message_id
     for (let i = 0; i < fakedb.length; i++) {

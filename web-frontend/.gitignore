@@ -48,3 +48,6 @@ next-env.d.ts
 test.json
 !README.md
 TODO*
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md

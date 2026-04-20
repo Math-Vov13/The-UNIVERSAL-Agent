@@ -1,4 +1,5 @@
-import { randomUUID } from "crypto";
+import { db } from "@/db";
+import { conversationsTable } from "@/db/schema/history.sql";
 import z from "zod";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -21,8 +22,21 @@ export async function POST(request: Request) {
         return new Response(JSON.stringify({ success: false, errors: result.error.flatten() }), { status: 400 });
     }
 
-    const { message, files } = result.data;
-    // Handle the chat creation logic here
-    
-    return new Response(JSON.stringify({ success: true, conversation_id: randomUUID(), message, files }), { status: 200 });
+    try {
+        const users = await db.insert(conversationsTable).values({
+            ownerId: 1,
+            title: `New Conversation`,
+        }).returning({
+            conv_id: conversationsTable.id,
+        });
+
+        const { message, files } = result.data;
+        // Handle the chat creation logic here
+
+        return new Response(JSON.stringify({ success: true, conversation_id: users[0].conv_id, message, files }), { status: 200 });
+
+    } catch (error) {
+        console.error('Error inserting conversation:', error);
+        return new Response(JSON.stringify({ success: false, error: 'Database conflict error' }), { status: 409 });
+    }
 }
