@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
       //new URL('https://cdn.pixabay.com/'),
 
       // Image CDN
-      new URL(process.env.NEXT_PUBLIC_CLOUDFRONT || 'https://d26dkrocm93qz4.cloudfront.net')
+      new URL(process.env.NEXT_PUBLIC_CLOUDFRONT || 'https://bfldeliveryscus.blob.core.windows.net')
     ]
     // domains: ['avatars.githubusercontent.com', 'modelslab-bom.s3.amazonaws.com', process.env.NEXT_PUBLIC_CLOUDFRONT || ''],
   },

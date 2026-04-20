@@ -44,6 +44,14 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_WEBSOCKET_URL=ws://localhost:8000/ws
 ```
 
+4. Host Postgres DB
+Look at [Supabase.com](https://supabase.com/)
+
+5. Migrate SQL schema
+```sh
+pnpm drizzle-kit migrate
+```
+
 ## Getting Started
 
 First, run the development server:

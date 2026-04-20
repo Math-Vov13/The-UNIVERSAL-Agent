@@ -1,9 +1,11 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import BaseMessage, ToolMessage
+from langchain_redis import RedisChatMessageHistory
 from pydantic import BaseModel
 from typing import Optional, Literal
-from models.s3.upload_files import upload_files_to_s3
 
 from schema.generation_streaming import ( 
     ChunkMessage,
@@ -15,9 +17,9 @@ from schema.generation_streaming import (
     ChunkToolEnd,
     ErrorResponse
 )
-
-import base64
-from rag.server import graph, checkpointer
+from rag.server import ensure_graph
+from models.cache_redis.client import client as redis_client
+from models.vc_chroma.client import chroma_client
 from uuid import uuid4
 import time
 
@@ -39,6 +41,7 @@ class FileItem(BaseModel):
 class GenerationRequest(BaseModel):
     prompt: str
     history: list[HistoryItem] = []
+    history_id: Optional[str] = None
     files: Optional[list[FileItem]] = None
 
 
@@ -56,16 +59,18 @@ def convert_history(history_items):
     return messages
 
 
-def _create_event_stream(request_id: str, generation):
+def _create_event_stream(request_id: str, generation, redis_store: RedisChatMessageHistory):
     async def event_stream():
 
         yield f"data: {RequestConnect(request_id=request_id).model_dump_json()}\n\n"
         yield f"data: {ContentModeration(request_id=request_id, moderate=None).model_dump_json()}\n\n"
 
+        response_content = ""
         start_time = time.time()
         try:
             async for chunk in generation:
                 print("event stream chunk:", chunk.get("event"), flush=True)
+                # print("Full chunk data:", chunk, flush=True)
 
                 if chunk.get("event") == "on_chat_model_start":
                     # print("Chat model started:", chunk, flush=True)
@@ -89,29 +94,40 @@ def _create_event_stream(request_id: str, generation):
 
                 elif chunk.get("event") == "on_chat_model_end":
                     # print("Chat model ended:", chunk, flush=True)
+                    # Response cached (fetch from redis)
+                    if response_content == "" and chunk.get('data', {}).get('output'):
+                        # TODO: handle tool calls in cached response
+                        delta_chunk = chunk.get('data', {}).get('output').model_dump()
+                        yield f"event: delta\ndata: {ChunkMessage(run_id=chunk.get('run_id'), parts=[{"type": "text", "text": delta_chunk.get('content', '')}], tool_calls=delta_chunk.get('tool_calls', []), response_metadata=delta_chunk.get('response_metadata', {}), usage_metadata=delta_chunk.get('usage_metadata', {})).model_dump_json()}\n\n"
+                    response_content = ""
+                    redis_store.add_ai_message(chunk.get('data', {}).get('output'))
                     yield f"event: delta\ndata: {ChunkEnd(run_id=chunk.get('run_id', ''), response_metadata=chunk.get('data', {}).get('output', {}).response_metadata).model_dump_json()}\n\n"
 
                 elif chunk.get("event") == "on_tool_start":
                     pass
                     
                 elif chunk.get("event") == "on_tool_end":
-                    # print("Tool ended:", chunk, flush=True)
+                    print("Tool ended:", chunk, flush=True)
+                    redis_store.add_message(ToolMessage(content=chunk.get('data', {}).get('output').content, tool_call_id=chunk.get('data', {}).get('output').tool_call_id))
                     yield f"data: {ChunkToolEnd(run_id=chunk.get('run_id'), tool_id=chunk.get('data').get('output').tool_call_id, tool_name=chunk.get('name'), data={
                         "output": chunk.get('data').get('output').content,
                         "input": chunk.get('data').get('input'),
                     }).model_dump_json()}\n\n"
+                    print("Yielded tool end for tool:", chunk.get('name'), flush=True)
                     
                 elif chunk.get("event") == "on_chat_model_stream":
                     # print("Chat model stream:", chunk, flush=True)
                     delta_chunk = chunk.get("data").get("chunk").model_dump()
+                    response_content += delta_chunk.get('content', '')
                     yield f"event: delta\ndata: {ChunkMessage(run_id=chunk.get('run_id'), parts=[{"type": "text", "text": delta_chunk.get('content', '')}], tool_calls=delta_chunk.get('tool_calls', []), response_metadata=delta_chunk.get('response_metadata', {}), usage_metadata=delta_chunk.get('usage_metadata', {})).model_dump_json()}\n\n"
             yield f"data: {RequestEnd(request_id=request_id, total_time=time.time() - start_time).model_dump_json()}\n\n"
 
         except Exception as e:
+            print("Error during generation:", str(e), flush=True)
             yield f"data: {ErrorResponse(error=str(e), error_type=type(e).__name__).model_dump_json()}\n\n"
         
         finally:
-            checkpointer.delete_thread(request_id)
+            # checkpointer.delete_thread(request_id)
             yield f"data: [DONE]\n\n"      
     
     return event_stream
@@ -119,37 +135,36 @@ def _create_event_stream(request_id: str, generation):
 
 
 @router.post("/")
-def create_generation_json(request: GenerationRequest) -> StreamingResponse:
-    print("prompt:", request.prompt, "history:", request.history, flush=True)
+async def create_generation_json(request: GenerationRequest) -> StreamingResponse:
+    RedisHistory = RedisChatMessageHistory(
+        redis_client=redis_client,
+        session_id=request.history_id or "temp_session",
+        ttl=64800 # 7 days
+    )
+
+    print("prompt:", request.prompt, "history:", RedisHistory.messages, flush=True)
 
     generation_id = "req-" + str(uuid4())
-    uploaded_files = []
     content = [{"type": "text", "text": request.prompt}]
+    content_files = []
     if request.files:
         for file in request.files:
             print("Processing file:", file.name, file.mimeType, flush=True)
-            # full_content = file.base64.split(f"data:{file.mimeType};base64,")[1]
-            # if full_content:
-            #     decoded_bytes = base64.b64decode(full_content)
-            #     obj_name = upload_files_to_s3(decoded_bytes, file.name, file.mimeType)
-            #     if obj_name:
-            #         uploaded_files.append({
-            #             "name": file.name,
-            #             "size": file.size,
-            #             "mimeType": file.mimeType,
-            #             "type": file.type,
-            #             "key_name": obj_name
-            #         })
-            content.append({
+            content_files.append({
                 "type": "image_url",
+                # "image_url": {"url": f"data:{file.mimeType};base64,{file.base64}"}
                 "image_url": {"url": file.base64}
             })
 
-    config = {
+        print("Contenu:", HumanMessage(content=content + content_files), flush=True)
+
+    config: RunnableConfig = {
         "configurable": {
-            "thread_id": generation_id
+            "thread_id": request.history_id or generation_id # TODO: utiliser l'id de l'historique (pour le checkpointer)
         }
     }
-    messages = convert_history(request.history) + [HumanMessage(content=content)]
-    generation = graph.astream_events({"messages": messages}, config=config)
-    return StreamingResponse(_create_event_stream(request_id=generation_id, generation=generation)(), media_type="text/event-stream")
+    # messages = convert_history(request.history) + [HumanMessage(content=content)]
+    graph_instance = await ensure_graph()
+    generation = graph_instance.astream_events({"messages": RedisHistory.messages + [HumanMessage(content=content + content_files)]}, config=config)
+    RedisHistory.add_user_message(HumanMessage(content=content))
+    return StreamingResponse(_create_event_stream(request_id=generation_id, generation=generation, redis_store=RedisHistory)(), media_type="text/event-stream")
