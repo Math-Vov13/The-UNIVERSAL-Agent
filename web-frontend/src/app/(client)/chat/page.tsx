@@ -22,6 +22,7 @@ export default function ChatPage() {
     const { start } = useHistory();
     return (
         <main className="flex flex-col h-screen">
+            <p>Pour créer un chat pressez entrée. ctrl+entrée pour un saut de ligne.</p>
             <div className="absolute top-[10%] left-0 z-[-1] w-full h-[80%] pointer-events-none">
                 <Orb
                     hoverIntensity={0.5}
@@ -32,18 +33,19 @@ export default function ChatPage() {
             </div>
             <div className="mx-auto my-auto flex flex-col items-center justify-center w-full h-full gap-10 px-4">
                 <div className="flex flex-col items-center justify-center">
-                    <BlurText text="Hey Math, what's news ?" className="text-6xl text-purple-400 font-extrabold text-center mt-10 mb-5" />
+                    <BlurText text="Hey Math, what's new ?" className="text-6xl text-purple-400 font-extrabold text-center mt-10 mb-5" />
 
                     <BadgeContainer />
                 </div>
 
                 <div className="flex items-center justify-center"></div>
                 <div className="flex items-center justify-center min-w-[300px] sm:w-full md:w-2/5">
-                <Magnet padding={50} disabled={false} magnetStrength={50} className="w-full" >
-                    <Suspense fallback={<ChatBarProps stateBar="create" blocked={true} text="loading..." />}>
-                        <ChatBarSuspense start={start} />
-                    </Suspense>
-                </Magnet>
+                    {/* <p>Pour créer un chat pressez "entrée". ctrl+entrée pour un saut de ligne.</p> */}
+                    <Magnet padding={50} disabled={false} magnetStrength={50} className="w-full" >
+                        <Suspense fallback={<ChatBarProps stateBar="create" blocked={true} text="loading..." />}>
+                            <ChatBarSuspense start={start} />
+                        </Suspense>
+                    </Magnet>
                 </div>
             </div>
             <ShootingStars className="z-[-1]" />

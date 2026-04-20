@@ -1,0 +1,21 @@
+{
+	"servers": {
+		"my-mcp-server-b17c02e8": {
+			"url": "https://www.kibo-ui.com/api/mcp/mcp",
+			"type": "http"
+		},
+		"my-mcp-server-b27c685f": {
+			"url": "https://registry.ai-sdk.dev/api/mcp",
+			"type": "http"
+		},
+		"shadcn": {
+			"command": "pnpm",
+			"args": [
+				"dlx",
+				"shadcn@latest",
+				"mcp"
+			]
+		}
+	},
+	"inputs": []
+}
