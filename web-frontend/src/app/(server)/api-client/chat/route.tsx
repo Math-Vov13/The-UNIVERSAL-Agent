@@ -1,4 +1,5 @@
-import { getConversation, addMessage, updateAssistantMessage } from "@/lib/db";
+import { save_agent_message, save_message_files, save_user_message } from "@/db/conversations.db";
+// import { getConversation, addMessage, updateAssistantMessage } from "@/lib/db";
 import { message_assistant_content_schema } from "@/lib/types/db.schema";
 import z from "zod";
 
@@ -15,7 +16,7 @@ const entry_schema = z.object({
     prompt: z.string().min(1).max(7000),
     conversation_id: z.uuidv4(),
     extra: z.array(z.any().optional()).optional(),
-    files: z.array(fileSchema.optional()).max(5).optional()
+    files: z.array(fileSchema).max(5).optional()
 })
 
 type MessageContent = {
@@ -26,6 +27,7 @@ type MessageContent = {
 type ApiRequestBody = {
     prompt: string;
     generate_title?: boolean;
+    history_id?: string;
     history: MessageContent[];
     files: z.infer<typeof fileSchema>[];
 }
@@ -59,7 +61,8 @@ export async function POST(req: Request) {
 
 
     const { prompt, conversation_id } = request.data;
-    const history = await getConversation(conversation_id);
+    const USER_ID = "1"; // Temporary static user ID for testing
+    // const history = await getConversation(conversation_id);
     const user_limits = {
         "web_search": {
             "active": true,
@@ -78,16 +81,16 @@ export async function POST(req: Request) {
     }
 
     // Concat all history messages into the format required by the backend
-    const parsedConversation = []
-    for (const msg of history) {
-        let messageContent = "";
-        for (const contentPart of msg.content) {
-            if (contentPart && 'type' in contentPart && contentPart.type === "text") {
-                messageContent = contentPart.text;
-            }
-        }
-        parsedConversation.push({ content: messageContent, role: msg.role });
-    }
+    // const parsedConversation = []
+    // for (const msg of history) {
+    //     let messageContent = "";
+    //     for (const contentPart of msg.content) {
+    //         if (contentPart && 'type' in contentPart && contentPart.type === "text") {
+    //             messageContent = contentPart.text;
+    //         }
+    //     }
+    //     parsedConversation.push({ content: messageContent, role: msg.role });
+    // }
 
     try {
         const response: Response = await fetch(`${process.env.BACKEND_BASE_URL}/generation/`, {
@@ -102,7 +105,8 @@ export async function POST(req: Request) {
             body: JSON.stringify({
                 prompt,
                 generate_title: false,
-                history: parsedConversation, //history.map((msg): MessageContent => ({ content: msg.content, role: msg.role })),
+                history_id: conversation_id,
+                // history: parsedConversation, //history.map((msg): MessageContent => ({ content: msg.content, role: msg.role })),
                 files: request.data.files || []
             } as ApiRequestBody),
         });
@@ -112,22 +116,43 @@ export async function POST(req: Request) {
             throw new Error("Failed to fetch");
         }
 
-        const user_message_id = await addMessage(conversation_id, {
-            id: "0",
-            role: "user",
-            content: [{
-                type: "text",
-                text: prompt
-            }],
-            timestamp: new Date().toISOString()
-        });
-        const assistant_message_id = await addMessage(conversation_id, {
-            id: "0",
-            role: "assistant",
-            content: [],
-            status: "pending",
-            timestamp: new Date().toISOString()
-        });
+        // const user_message_id = await addMessage(conversation_id, {
+        //     id: "0",
+        //     role: "user",
+        //     content: [{
+        //         type: "text",
+        //         text: prompt
+        //     }],
+        //     timestamp: new Date().toISOString()
+        // });
+
+        // Save user message to DB
+        const user_message_id = await save_user_message(conversation_id, USER_ID, [{
+            type: "text",
+            text: prompt
+        }]);
+        if (!user_message_id) {
+            throw new Error("Error DB saving message");
+        }
+
+        // Save attached files if any
+        if (request.data.files && request.data.files.length > 0) {
+            await save_message_files(conversation_id, USER_ID, user_message_id, request.data.files?.map(file => ({
+                name: file.name,
+                size: file.size,
+                mimeType: file.mimeType,
+                type: file.type,
+                uri: "path/to/file/" + file.name,
+                index: 0
+            })));
+        }
+        // const assistant_message_id = await addMessage(conversation_id, {
+        //     id: "0",
+        //     role: "assistant",
+        //     content: [],
+        //     status: "pending",
+        //     timestamp: new Date().toISOString()
+        // });
 
         // Set up streaming response with proper SSE format
         const stream = new ReadableStream({
@@ -169,7 +194,7 @@ export async function POST(req: Request) {
                         // console.log("Raw received lines:", lines);
 
                         const processedLines = [];
-                        for ( const line of lines) {
+                        for (const line of lines) {
                             if (line.trim().startsWith("data:")) {
                                 processedLines.push(line);
                                 continue;
@@ -202,7 +227,7 @@ export async function POST(req: Request) {
                                 const chunkType = jsonData.type as string | undefined;
                                 switch (chunkType) {
                                     case "content_moderation":
-                                        controller.enqueue(new TextEncoder().encode(`event: session\ndata: ${JSON.stringify({ type: "session", conversation_id, message_id: assistant_message_id, parent_id: user_message_id, moderate: jsonData.moderate === null ? "safe" : jsonData.moderate })}\n\n`));
+                                        controller.enqueue(new TextEncoder().encode(`event: session\ndata: ${JSON.stringify({ type: "session", conversation_id, message_id: "temp-0000", parent_id: user_message_id, moderate: jsonData.moderate === null ? "safe" : jsonData.moderate })}\n\n`));
                                         break;
 
                                     case "chat_model_start":
@@ -268,7 +293,7 @@ export async function POST(req: Request) {
                                             //     start_timestamp: new Date().toISOString(),
                                             //     timestamp: new Date().toISOString()
                                             // });
-                                            
+
                                             all_message_parts.push({
                                                 index: all_message_parts.length + 1,
                                                 path: tool_call_path,
@@ -308,8 +333,9 @@ export async function POST(req: Request) {
                     console.error("Stream error:", error);
                     controller.error(error);
                 } finally {
-                    await updateAssistantMessage(conversation_id, assistant_message_id, all_message_parts, "completed", new Date().toISOString());
+                    // await updateAssistantMessage(conversation_id, assistant_message_id, all_message_parts, "completed", new Date().toISOString());
                     // await updateMessage(conversation_id, assistant_message_id, completeResponse, tools_used, undefined, "completed", new Date().toISOString());
+                    const agent_message_id = await save_agent_message(conversation_id, USER_ID, all_message_parts);
                     controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
 
                     if (lines_notprocessed.length > 0) {

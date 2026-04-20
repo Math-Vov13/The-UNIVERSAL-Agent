@@ -180,3 +180,6 @@ pyrightconfig.json
 
 *.txt
 MCP.md
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md
