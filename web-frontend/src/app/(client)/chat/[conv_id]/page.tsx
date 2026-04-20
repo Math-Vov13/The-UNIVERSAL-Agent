@@ -2,92 +2,109 @@
 import ChatBarProps from "@/components/pages/ChatBar";
 import ChatWindow from "@/components/pages/ChatWindow";
 import { useHistory } from "@/components/Providers/historyProvider";
-import { ShootingStars } from "@/components/ui/shooting-stars";
 import { StarsBackground } from "@/components/ui/stars-background";
 import { PlusSquare } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
-
-
-
 
 export default function ChatPage() {
   const { isLoading, error, history, isWorking, isAuthorized, retrySendMessage } = useHistory();
 
   if (!isAuthorized) {
     return (
-      <main className="flex flex-col h-screen">
-        <nav className="h-16 bg-gray-800 flex items-center px-4">
-          <button type="button" className="text-purple-400 p-[3px] relative mr-4">
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg" />
-            <div className="bg-black rounded-[6px]  relative group transition duration-200 text-white hover:bg-transparent">
-              <Link className="px-4 py-2 text-purple-400 hover:text-white hover:font-semibold gap-2 flex items-center" href="/chat"><PlusSquare /><span>Start new chat</span></Link>
-            </div>
-          </button>
-          <h1 className="text-white text-lg font-semibold">Chat with AI Assistant</h1>
+      <main className="relative flex flex-col h-screen bg-[#07070d] text-white overflow-hidden">
+        {/* Galaxy background */}
+        <StarsBackground starDensity={0.0003} className="z-0" />
+        <div className="fixed inset-0 z-[1] pointer-events-none nebula-overlay" />
+
+        <nav className="relative z-50 fixed top-0 inset-x-0 flex items-center justify-between px-6 h-14 border-b border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#3A29FF] to-[#FF94B4]" />
+            <span className="text-sm font-semibold tracking-widest text-white/70 uppercase">Universal</span>
+          </Link>
+          <Link href="/chat" className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors">
+            <PlusSquare className="w-4 h-4" />
+            <span>New chat</span>
+          </Link>
         </nav>
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <p className="text-gray-500 mx-auto my-auto h-full p-6">403 - This conversation is private or not does not exist.</p>
-          <div className="h-auto w-auto mx-auto my-auto">
-            <Link href="/chat" className="text-purple-400 hover:text-purple-300">Chat with AI</Link>
-            {" • "}
-            <Link href="/" className="text-purple-400 hover:text-purple-300">Go back to home</Link>
-          </div>
-          <div className="p-6 rounded-lg bg-gray-800/10 backdrop-blur-md max-w-md mx-auto my-8 text-center">
-            <p className="mb-4">You do not have access to this conversation.</p>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-400">
-                Learn why you are seeing this message <Link href="/docs" className="text-purple-400 hover:text-purple-300 underline">here</Link>.
-              </p>
-              <p className="text-sm text-gray-400 mt-4">
-                if this is unexpected, please <Link href="/feedback" className="text-purple-400 hover:text-purple-300 underline">let us know</Link>.
-              </p>
-            </div>
+
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-6 pt-14 px-6 text-center">
+          <p className="text-xs font-mono text-red-400 tracking-widest uppercase">403 — Access denied</p>
+          <h1 className="text-3xl font-bold tracking-tight">This conversation doesn&apos;t exist.</h1>
+          <p className="text-gray-600 text-sm max-w-xs">
+            The conversation is private, expired, or was never created.
+          </p>
+          <div className="flex items-center gap-4 mt-2">
+            <Link href="/chat" className="px-5 py-2.5 rounded-full text-sm font-medium bg-white/[0.06] border border-white/[0.10] hover:bg-white/[0.10] transition-colors">
+              New chat
+            </Link>
+            <Link href="/" className="text-sm text-gray-600 hover:text-white transition-colors">
+              Go home
+            </Link>
           </div>
         </div>
-        <ShootingStars className="z-[-1]" />
-        <StarsBackground className="z-[-2]" />
       </main>
     );
   }
 
   return (
-    <main className="flex flex-col h-screen">
-      <nav className="h-16 bg-gray-800 flex items-center px-4">
-        <button type="button" className="text-purple-400 p-[3px] relative mr-4">
-          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg" />
-          <div className="bg-black rounded-[6px]  relative group transition duration-200 text-white hover:bg-transparent">
-            <Link className="px-4 py-2 text-purple-400 hover:text-white hover:font-semibold gap-2 flex items-center" href="/chat"><PlusSquare /><span>Start new chat</span></Link>
-          </div>
-        </button>
-        <h1 className="text-white text-lg font-semibold">Chat with AI Assistant</h1>
+    <main className="relative flex flex-col h-screen bg-[#07070d] text-white overflow-hidden">
+
+      {/* Stars canvas — deepest layer */}
+      <StarsBackground starDensity={0.0003} className="z-0" />
+
+      {/* Nebula gradient overlay */}
+      <div className="fixed inset-0 z-[1] pointer-events-none nebula-overlay" />
+
+      {/* Nav */}
+      <nav className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 h-14 border-b border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl">
+        <Link href="/" className="flex items-center gap-2 group">
+          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#3A29FF] to-[#FF94B4]" />
+          <span className="text-sm font-semibold tracking-widest text-white/60 group-hover:text-white/90 uppercase transition-colors">Universal</span>
+        </Link>
+        <Link href="/chat" className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-white transition-colors">
+          <PlusSquare className="w-4 h-4" />
+          <span>New chat</span>
+        </Link>
       </nav>
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-indigo-900/20 h-full w-[60%] mx-auto flex flex-col">
-          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><p className="text-gray-500">Loading chat...</p></div>}>
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-1 flex-col overflow-hidden pt-14">
+        <div className="flex flex-1 flex-col overflow-hidden max-w-3xl w-full mx-auto">
+
+          <Suspense fallback={
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-gray-700 text-sm font-mono">Loading…</p>
+            </div>
+          }>
             {isLoading ? (
               <div className="flex-1 flex items-center justify-center">
-                <p className="text-gray-500">Loading conversation history...</p>
+                <p className="text-gray-700 text-sm font-mono animate-pulse">Loading conversation…</p>
               </div>
             ) : (
-              <ChatWindow
-                messages={history}
-                isLoading={isWorking}
-              />
+              <ChatWindow messages={history} isLoading={isWorking} />
             )}
           </Suspense>
-          <div className="p-4 px-12 rounded-t-3xl bg-gray-800/10 backdrop-blur-md">
+
+          {/* Input area */}
+          <div className="px-4 pb-5 pt-2">
             {error && (
-              <div className="p-4 bg-red-800/30 text-red-300 rounded-md mb-4 text-center" role="alert">
-                <span>Une erreur est survenue lors de l&apos;envoi de la requête. </span><span><button type="button" className="ml-2 underline hover:text-white hover:bg-gray-700 cursor-pointer" onClick={() => retrySendMessage()}>Réessayer</button> ?</span>
+              <div className="mb-3 flex items-center justify-between px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                <span>An error occurred while sending the request.</span>
+                <button
+                  type="button"
+                  className="ml-3 underline hover:text-red-300 transition-colors cursor-pointer"
+                  onClick={() => retrySendMessage()}
+                >
+                  Retry
+                </button>
               </div>
             )}
             <ChatBarProps stateBar="chat" blocked={isWorking} />
           </div>
+
         </div>
       </div>
-      <ShootingStars className="z-[-1]" />
-      <StarsBackground className="z-[-2]" />
     </main>
   );
 }

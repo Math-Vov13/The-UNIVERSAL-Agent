@@ -44,7 +44,7 @@ const MermaidChart: React.FC<MermaidChartProps> = ({ chart, filename }) => {
                 try {
                     // mermaid.parse can be sync or async depending on version; await handles both
                     await Promise.resolve(mermaid.parse(chart));
-                } catch (parseErr) {
+                } catch (_parseErr) {
                     // Keep showing last good render while streaming incomplete content
                     if (lastGoodSvgRef.current) {
                         chartRef.current.innerHTML = lastGoodSvgRef.current;

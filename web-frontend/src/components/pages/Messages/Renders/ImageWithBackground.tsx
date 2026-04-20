@@ -29,7 +29,7 @@ const TransparentImageWithBackground: React.FC<TransparentImageWithBackgroundPro
     //     overflow: 'hidden', // Pour cacher ce qui dépasse si l'image est trop grande
     // };
 
-    const imageStyle: React.CSSProperties = {
+    const _imageStyle: React.CSSProperties = {
         maxWidth: '100%', // Assure que l'image ne dépasse pas du conteneur
         maxHeight: '100%',
         objectFit: 'contain', // Redimensionne l'image pour qu'elle tienne dans le conteneur

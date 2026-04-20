@@ -121,3 +121,56 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Custom scrollbar (chat window) ── */
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+/* ── Tool pill theme ── */
+.tool-web  { --t-color:#3A29FF; --t-bg:rgba(58,41,255,.10); --t-border:rgba(58,41,255,.28); }
+.tool-code { --t-color:#7cff67; --t-bg:rgba(124,255,103,.08); --t-border:rgba(124,255,103,.24); }
+.tool-sat  { --t-color:#ffaa40; --t-bg:rgba(255,170,64,.08); --t-border:rgba(255,170,64,.24); }
+.tool-img  { --t-color:#FF94B4; --t-bg:rgba(255,148,180,.10); --t-border:rgba(255,148,180,.28); }
+.tool-def  { --t-color:#6b7280; --t-bg:rgba(107,114,128,.10); --t-border:rgba(107,114,128,.24); }
+
+.tool-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-family: var(--font-geist-mono);
+  color: var(--t-color); background: var(--t-bg); border: 1px solid var(--t-border);
+  white-space: nowrap; cursor: default;
+}
+.tool-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--t-color); flex-shrink: 0; }
+
+/* ── Chat input form ── */
+.chat-input-form {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-radius: 1rem;
+  transition: border-color 0.25s ease;
+}
+.chat-input-form:focus-within { border-color: rgba(255,255,255,0.15); }
+
+/* ── Message slide animations ── */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slideInRight { animation: slideInRight 0.35s cubic-bezier(.16,1,.3,1) both; }
+.animate-slideInLeft  { animation: slideInLeft  0.35s cubic-bezier(.16,1,.3,1) both; }
+
+/* ── Galaxy nebula overlay ── */
+.nebula-overlay {
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 25%, rgba(74,21,128,0.22) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 85% 75%, rgba(26,58,143,0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 60% 15%, rgba(58,41,255,0.12) 0%, transparent 60%);
+}

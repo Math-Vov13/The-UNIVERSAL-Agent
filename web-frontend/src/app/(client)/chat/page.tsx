@@ -22,7 +22,6 @@ export default function ChatPage() {
     const { start } = useHistory();
     return (
         <main className="flex flex-col h-screen">
-            <p>Pour créer un chat pressez entrée. ctrl+entrée pour un saut de ligne.</p>
             <div className="absolute top-[10%] left-0 z-[-1] w-full h-[80%] pointer-events-none">
                 <Orb
                     hoverIntensity={0.5}
