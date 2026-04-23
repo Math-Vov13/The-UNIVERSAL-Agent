@@ -1,4 +1,6 @@
 import { save_agent_message, save_message_files, save_user_message } from "@/db/conversations.db";
+
+export const dynamic = 'force-dynamic';
 // import { getConversation, addMessage, updateAssistantMessage } from "@/lib/db";
 import { message_assistant_content_schema } from "@/lib/types/db.schema";
 import z from "zod";

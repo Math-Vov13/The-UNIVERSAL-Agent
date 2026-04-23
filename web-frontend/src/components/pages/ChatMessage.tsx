@@ -1,9 +1,12 @@
 import z from "zod";
+import Image from "next/image";
 import MessageFormat from "./Messages/MessageFormat";
+import { ImageZoom } from "@/components/kibo-ui/image-zoom";
 import { message_schema, tool_schema } from "@/lib/types/client.schema";
 import {
   Globe, CodeSquare, Satellite, ImageIcon, Wrench,
   Copy, Edit3, GitBranch, RefreshCw, Flag, ThumbsUp, ThumbsDown, Bookmark, Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { ExternalLink } from "lucide-react";
 
@@ -51,6 +54,56 @@ function getSearchResultsCount(output: unknown): number {
   }
   const r = resolve(output);
   return Array.isArray(r) ? r.length : 0;
+}
+
+function extractImageUrl(output: string): string | null {
+  if (!output) return null;
+  try {
+    const parsed = JSON.parse(output);
+    const url = parsed?.url ?? parsed?.image_url ?? parsed?.output ?? parsed?.data?.[0]?.url;
+    if (typeof url === "string" && url.startsWith("http")) return url;
+  } catch { /* not JSON */ }
+  if (output.startsWith("http")) return output;
+  return null;
+}
+
+function ImageGenerationBlock({ tool }: { tool: z.infer<typeof tool_schema> }) {
+  if (tool.status === "in_progress") {
+    return (
+      <div className="relative overflow-hidden rounded-xl w-72 h-48 bg-white/[0.04] border border-white/[0.06] animate-pulse">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-gray-600">
+          <ImageIcon className="w-6 h-6" />
+          <span className="text-xs font-mono">Generating image…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (tool.status === "failed") {
+    return (
+      <div className="flex items-center gap-2 rounded-xl w-72 h-12 px-4 bg-red-950/30 border border-red-900/40 text-red-400 text-xs">
+        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+        Image generation failed.
+      </div>
+    );
+  }
+
+  const url = extractImageUrl(tool.output);
+  if (!url) return null;
+
+  return (
+    <ImageZoom className="inline-block rounded-xl overflow-hidden border border-white/[0.08]">
+      <Image
+        src={url}
+        alt="Generated image"
+        width={512}
+        height={512}
+        className="max-w-xs h-auto rounded-xl"
+        unoptimized
+      />
+    </ImageZoom>
+  );
 }
 
 export default function ChatMessage({
@@ -158,6 +211,9 @@ export default function ChatMessage({
 
             if (part && "status" in part && "name" in part) {
               const p = part as z.infer<typeof tool_schema>;
+              if (p.name === "image_generation") {
+                return <ImageGenerationBlock key={idx} tool={p} />;
+              }
               return (
                 <span
                   key={idx}

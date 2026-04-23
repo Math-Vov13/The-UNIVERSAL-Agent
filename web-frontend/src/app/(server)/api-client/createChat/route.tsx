@@ -2,6 +2,8 @@ import { db } from "@/db";
 import { conversationsTable } from "@/db/schema/history.sql";
 import z from "zod";
 
+export const dynamic = 'force-dynamic';
+
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_FILE_TYPES = ['image/png', 'image/jpeg', 'application/pdf', 'text/plain'];
 const MAX_FILES = 3;

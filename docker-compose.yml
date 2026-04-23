@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - BACKEND_BASE_URL=http://nginx:8000
+      - BACKEND_BASE_URL=http://nginx:8000/api/v1
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:mypassword@db:5432/postgres
 

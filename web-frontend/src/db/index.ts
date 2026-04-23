@@ -4,7 +4,7 @@ import { usersTable } from './schema/users.sql';
 import { modelsTable } from './schema/models.sql';
 
 
-const connectionString = process.env.DATABASE_URL || '';
+const connectionString = process.env.DATABASE_URL || 'postgresql://placeholder:placeholder@localhost:5432/placeholder';
 
 
 // Disable prefetch as it is not supported for "Transaction" pool mode

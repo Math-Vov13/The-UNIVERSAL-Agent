@@ -1,6 +1,8 @@
 import { getConversation } from "@/db/conversations.db";
 import { conversation_schema } from "@/lib/types/db.schema";
 
+export const dynamic = 'force-dynamic';
+
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
